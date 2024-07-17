@@ -2,8 +2,9 @@ import numpy as np
 from nexpy.gui.datadialogs import GridParameters, NXDialog
 from nexpy.gui.widgets import NXMessageBox
 from nexpy.gui.utils import report_error, keep_data
-from nexusformat.nexus import NeXusError, NXdata, NXfield, NXentry, NXroot
-from .info_dialogue import INFODialog
+from nexusformat.nexus import NeXusError, NXdata, NXfield
+from nexpy.consoleapp import _nexpy_dir
+import os
 
 def show_dialog():
     try:
@@ -84,7 +85,7 @@ class XASDialog(NXDialog):
                           self.parameters['Hz'].value]
         temperature = self.parameters['T'].value
 
-        with  open('/Users/Botel001/Development/XAS_simulator/xas_simulator/parameters.json','r',encoding='utf-8') as f:
+        with  open(os.path.dirname(__file__) + '/parameters.json','r',encoding='utf-8') as f:
             xdat = json.load(f, )   
 
         params2 = {
@@ -125,7 +126,7 @@ class XASDialog(NXDialog):
         input.set_spectra_lists()
         # make and use a tmp directory
         input.calculate_and_save_spectra()
-        input.run()
+        input.run(Qty_path=qtypath)
         input.treat_output()
         
         # Post-processing and display

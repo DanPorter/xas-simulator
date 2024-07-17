@@ -376,7 +376,7 @@ class XAS_Lua:
         Gmax = iondata['L2,3 (2p)']['axes'][0][5][1]
         Gamma = iondata['L2,3 (2p)']['axes'][0][6]
         Egamma1 = Edge+10
-        BaseName = self.ion+'_XAS'
+        BaseName = self.path+self.ion+'_XAS'
 
         with open(self.filename, 'a') as f:
             f.write(70 * '-' + '\n-- Helper functions for spectra calculations\n' + 70 * '-' + '\n')
@@ -652,7 +652,7 @@ class XAS_Lua:
     
     def treat_output(self):
         """
-        From the standar output of a Quanty calculation with the XAS_Template, 
+        From the standard output of a Quanty calculation with the XAS_Template, 
         it extracts the relevant expctation value
 
         Arguments:

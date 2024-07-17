@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "xas_simulator"
 version = "0.1.0"
 dependencies = [
-    "nexpy"
+    "nexpy", "tabulate"
 ]
 
 [project.entry-points."nexpy.plugins"]
