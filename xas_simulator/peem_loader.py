@@ -20,12 +20,11 @@ from nexpy.gui.utils import report_error, display_message, keep_data, nxload
 from nexusformat.nexus import NeXusError, NXentry, NXdata, NXfield
 from nexpy.gui.consoleapp import _tree
 
-from .xmcd_analysis import calculate_xmcd
 
-
-DEFAULT_DATA_PATH = '/dls/i06/data/2024/'
+DEFAULT_DATA_PATH = '/scratch/grp66007/data/i06/mm34629-2' # '/dls/i06/data/2024/'
 DEFAULT_PATH_SPEC = 'i06-%d.nxs'
 PARAM_STRING = 'pol={polarisation}, {incident_energy:.2f} eV'
+MEDIPIX_PATH = '/entry/medipix'
 
 
 def show_dialog():
@@ -124,11 +123,15 @@ class PeemLoader(NXDialog):
 
         if not h5py.is_hdf5(scan_file):
             self._msg(f"'{scan_file}' is not a file")
+            return
 
         scan = hdfmap.NexusLoader(scan_file)
-        MEDIPIX_PATH = '/entry/medipix'
-        if not MEDIPIX_PATH in scan.map.groups:
+        if MEDIPIX_PATH not in scan.map.groups:
             self._msg(f"'{scan_file}' does not contain medipix data")
+            return
+        if MEDIPIX_PATH + '/pol' not in scan.map.datasets:
+            self._msg(f"'{scan_file}' does not contain medipix/pol data")
+            return
 
         data = scan(MEDIPIX_PATH + '/data')
         pol = scan(MEDIPIX_PATH + '/pol').astype(str)
@@ -141,10 +144,28 @@ class PeemLoader(NXDialog):
         if 'energy' in axes:
             energy = scan(MEDIPIX_PATH + '/energy')
             en_pol = energy[pol == 'pc']  # len(ds) * len(energy)
-            xmcd_image = (np.sum(xmcd[en_pol > np.mean(energy), :, :], axis=0) -
-                          np.sum(xmcd[en_pol < np.mean(energy), :, :], axis=0))
+            mean_en = np.mean(energy)
+            # xmcd_image = (np.sum(xmcd[en_pol > np.mean(energy), :, :], axis=0) -
+            #               np.sum(xmcd[en_pol < np.mean(energy), :, :], axis=0))  # wrong for some reason
+            nc_peak_image = np.sum(nc[en_pol > mean_en, :, :], axis=0)
+            nc_bkg_image = np.sum(nc[en_pol < mean_en, :, :], axis=0)
+            pc_peak_image = np.sum(pc[en_pol > mean_en, :, :], axis=0)
+            pc_bkg_image = np.sum(pc[en_pol < mean_en, :, :], axis=0)
+            nc_image = nc_peak_image - nc_bkg_image
+            pc_image = pc_peak_image - pc_bkg_image
+            xmcd_peak_image = np.sum(xmcd[en_pol > mean_en, :, :], axis=0)
+            xmcd_bkg_image = np.sum(xmcd[en_pol < mean_en, :, :], axis=0)
+            xmcd_image = nc_image - pc_image
+            all_data = [nc_peak_image, pc_peak_image, nc_bkg_image, pc_bkg_image, nc_image, pc_image,
+                        xmcd_peak_image, xmcd_bkg_image, xmcd_image]
+            all_data_arg = ['nc_Epeak', 'pc_Epeak', 'nc_Ebkg', 'pc_Ebkg', 'nc_Epk-bg', 'pc_Epk-bk',
+                            'xmcd_Epeak', 'xmcd_Ebkg', 'xmcd']
         else:
+            nc_image = np.sum(nc, axis=0)
+            pc_image = np.sum(pc, axis=0)
             xmcd_image = np.sum(xmcd, axis=0)
+            all_data = [nc_image, pc_image, xmcd_image]
+            all_data_arg = ['nc', 'pc', 'xmcd']
 
         # Load files for tree
         regex = re.compile(spec.replace('%d', '(\d+)'))
@@ -152,15 +173,17 @@ class PeemLoader(NXDialog):
         # nx_data = nxload(scan_file)['entry']
 
         # for plotting
-        # xas1 = NXdata(NXfield(nc, name='images_nc'), name='images_nc')
-        # xas2 = NXdata(NXfield(pc, name='images_pc'), name='images_pc')
-        xmcd = NXdata(NXfield(xmcd_image, name='XMCD'), name='XMCD')
-        # entry = NXentry(nx_data, xas1, xas2, xmcd, name=f'XMCD_{scan_number}')
-        entry = NXentry(xmcd, name=f'XMCD_{scan_number}')
+        images = NXfield(all_data, name='images')
+        names = NXfield(all_data_arg, name='names')
+        nx_data = NXdata(images, names)
+
+        xmcd = NXdata(NXfield([xmcd_image], name='XMCD'), name='XMCD')
+        entry = NXentry(nx_data, xmcd, name=f'XMCD_{scan_number}')
         xmcd.set_default()
 
         # entry.set_default()
         # xmcd.implot()
+        entry.plot()
 
         keep_data(entry)
 
