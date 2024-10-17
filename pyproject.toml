@@ -4,9 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "xas_simulator"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
-    "nexpy"
+    "nexpy",
+    "hdfmap"
 ]
 
 [project.entry-points."nexpy.plugins"]
