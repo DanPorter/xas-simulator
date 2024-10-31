@@ -5,7 +5,9 @@
 It uses [Quanty](https://www.quanty.org/) to do multiplet calculations under different approximations.
 
 ### Installation
-Requries: *python >3.10*, *nexpy*, *HdfMap*
+Requries: **Quanty**, **python >3.10**, *nexpy*, *HdfMap*, *tabulate*
+
+**Quanty** must be downloaded from [www.quanty.org](https://www.quanty.org/), which requires an email sign-on.
 
 ```bash
 $ python -m pip install nexpy hdfmap
