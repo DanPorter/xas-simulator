@@ -1,13 +1,26 @@
 import os
+import tempfile
 import numpy as np
+from scipy.integrate import romb
 from nexpy.gui.datadialogs import GridParameters, NXDialog
 from nexpy.gui.widgets import NXMessageBox
 from nexpy.gui.utils import report_error, keep_data, display_message
 from nexusformat.nexus import NeXusError, NXdata, NXfield, NXentry, NXroot
+
+from xas_simulator.params_short import xray_data, parameters
+from xas_simulator.XMCD_src2 import XAS_Lua
 from .info_dialogue import INFODialog
 
-DEFAULT_QUANTY_PATH = '/scratch/grp66007/software/xmcd_beamline_simulator/quanty_lin/Quanty'
-PARAMETERS = os.path.dirname(__file__) + '/parameters.json'
+# DEFAULT_QUANTY_PATH = '/scratch/grp66007/software/xmcd_beamline_simulator/quanty_lin/Quanty'
+DEFAULT_QUANTY_PATH = r"C:\Users\grp66007\Documents\quanty\quanty_win\QuantyWin64.exe"
+
+# Find writable directory
+TMPDIR = tempfile.gettempdir()
+if not os.access(TMPDIR, os.W_OK):
+    TMPDIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    if not os.access(TMPDIR, os.W_OK):
+        TMPDIR = os.path.expanduser('~')
+print('Writable TEMPDIR = %s' % TMPDIR)
 
 
 def show_dialog():
@@ -69,9 +82,6 @@ class XASDialog(NXDialog):
         return html_content
 
     def compute(self):
-        from .XMCD_src2 import XAS_Lua
-        from .params_short import parameters
-        import json
 
         qtypath = self.parameters['Qtypath'].value
         ion = self.parameters['ion'].value
@@ -88,11 +98,8 @@ class XASDialog(NXDialog):
                           self.parameters['Hz'].value]
         temperature = self.parameters['T'].value
 
-        with open(PARAMETERS, 'r', encoding='utf-8') as f:
-            xdat = json.load(f, )
-
         # Check ion
-        if ion not in parameters or ion not in xdat['elements']:
+        if ion not in parameters or ion not in xray_data['elements']:
             message = f"Ion '{ion}' not available. Available ions are:\n"
             message += ', '.join(parameters)
             display_message('XAS Setup', message)
@@ -122,9 +129,9 @@ class XASDialog(NXDialog):
         }
         # Check charge
         ch_str = f"{abs(ch)}+" if ch > 0 else f"{abs(ch)}-"
-        if ch_str not in xdat['elements'][ion]['charges']:
+        if ch_str not in xray_data['elements'][ion]['charges']:
             message = f"Ionic charge: '{ion}{ch_str}' is not available.\nAvailable charges for {ion} are:\n"
-            message += ','.join(xdat['elements'][ion]['charges'].keys())
+            message += ','.join(xray_data['elements'][ion]['charges'].keys())
             display_message('XAS Setup', message)
             return
 
@@ -133,7 +140,9 @@ class XASDialog(NXDialog):
             symm='Oh',
             charge=ch_str,
             params=params2,
-            params_json=xdat
+            params_json=xray_data,
+            output_path=TMPDIR,
+            quanty_path=DEFAULT_QUANTY_PATH,
         )
         input.write_header()
         input.H_init()
@@ -150,15 +159,15 @@ class XASDialog(NXDialog):
         input.set_spectra_lists()
         # make and use a tmp directory
         input.calculate_and_save_spectra()
-        input.run(qtypath)
+        input.run()
         input.treat_output()
 
         # Post-processing and display
 
-        xt = np.loadtxt(label + '_iso.spec', skiprows=5)
-        mcd = np.loadtxt(label + '_cd.spec', skiprows=5)
-        xl = np.loadtxt(label + '_l.spec', skiprows=5)
-        xr = np.loadtxt(label + '_r.spec', skiprows=5)
+        xt = np.loadtxt(os.path.join(input.path, label + '_iso.spec'), skiprows=5)
+        mcd = np.loadtxt(os.path.join(input.path, label + '_cd.spec'), skiprows=5)
+        xl = np.loadtxt(os.path.join(input.path, label + '_l.spec'), skiprows=5)
+        xr = np.loadtxt(os.path.join(input.path, label + '_r.spec'), skiprows=5)
 
         xz = 3 * xt - (xl + xr)
         mcd2 = xr.copy()
@@ -182,9 +191,9 @@ class XASDialog(NXDialog):
             tot0 = np.trapz(xas0[:, 2], xas0[:, 0])
             dx0 = np.trapz(dx[:, 2], dx[:, 0])
         else:
-            tot = np.romb(xas[:, 2], dx=(xas[1, 0] - xas[0, 0]))
-            tot0 = np.romb(xas0[:, 2], dx=(xas0[1, 0] - xas0[0, 0]))
-            dx0 = np.romb(dx[:, 2], dx=(dx[1, 0] - dx[0, 0]))
+            tot = romb(xas[:, 2], dx=float(xas[1, 0] - xas[0, 0]))
+            tot0 = romb(xas0[:, 2], dx=float(xas0[1, 0] - xas0[0, 0]))
+            dx0 = romb(dx[:, 2], dx=float(dx[1, 0] - dx[0, 0]))
 
         deltaXas = dx0 / tot
 
@@ -202,11 +211,11 @@ class XASDialog(NXDialog):
         else:
             # print(len(mcd2[npts//2:,2]), len(mcd2[0:npts//2+1]))
             mydelta = mcd2[1, 0] - mcd2[0, 0]
-            lz = 2 * nh * np.romb(mcd2[:, 2], mydelta) / tot
-            L3 = np.romb(mcd2[0:npts // 2 + 1, 2], mydelta)
-            L2 = np.romb(mcd2[npts // 2:, 2], mydelta)
+            lz = 2 * nh * romb(mcd2[:, 2], mydelta) / tot
+            L3 = romb(mcd2[0:npts // 2 + 1, 2], mydelta)
+            L2 = romb(mcd2[npts // 2:, 2], mydelta)
             szef = 3 / 2 * nh * (L3 - 2 * L2) / tot
-            lz0 = 2 * nh * np.romb(mcd2[:, 2], mydelta) / tot0
+            lz0 = 2 * nh * romb(mcd2[:, 2], mydelta) / tot0
             szef0 = 3 / 2 * nh * (L3 - 2 * L2) / tot0
 
         Lz_t = float(input.outdic['L_k'])

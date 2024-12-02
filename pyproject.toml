@@ -4,12 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "xas_simulator"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
     "nexpy",
     "hdfmap",
     "tabulate"
 ]
+
+[tool.setuptools]
+packages = ["xas_simulator"]
 
 [project.entry-points."nexpy.plugins"]
 xas_simulator = "xas_simulator:plugin_menu"

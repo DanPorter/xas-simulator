@@ -3,6 +3,7 @@ XMCD Analysis
 """
 
 import numpy as np
+from scipy.optimize import minimize
 import h5py
 
 
@@ -47,3 +48,31 @@ def calculate_xmcd(file_list: list[str], energy_path: str, signal_path: str, pol
     diff = interp_nc - interp_pc
     return av_energy, interp_pc, interp_nc, diff
 
+
+def spectra_difference(energy_1, signal_1, energy_2, signal_2):
+    """Compare 2 spectra, return difference/steps"""
+    if min(energy_2) > max(energy_1) or max(energy_2) < min(energy_1):
+        raise Exception(f"Energies dont match: ({min(energy_1)}, {max(energy_1)}), ({min(energy_2)}, {max(energy_2)})")
+    energy = average_energy_scans(energy_1, energy_2)
+    data_1 = np.interp(energy, energy_1, signal_1)
+    data_2 = np.interp(energy, energy_2, signal_2)
+    return np.sqrt(np.sum(np.square(data_2 - data_1))) / len(energy)
+
+
+def compare_spectra(energy_1, signal_1, energy_2, signal_2, initial_offset=0, initial_amplitude=1.0):
+    """find best offset and amplitude"""
+
+    def min_fun(vals):
+        offset_val, amplitude_val = vals
+        return spectra_difference(energy_1, signal_1, energy_2 + offset_val, signal_2 * amplitude_val)
+
+    out = minimize(min_fun, np.array([initial_offset, initial_amplitude]), method='Powell')  # 'Nelder-Mead', 'Powell'
+
+    offset, amplitude = out.x
+    print('Minimise completed')
+    print('Results:')
+    print(out.message)
+    print('Minimum = ', out.fun)
+    print(f"  Offset = {offset:.2f} eV")
+    print(f"  Amplitude = {amplitude:.3g}")
+    return offset, amplitude

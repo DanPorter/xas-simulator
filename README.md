@@ -20,3 +20,9 @@ $ python -m pip install .
 ```bash
 $ nexpy
 ```
+
+### Development
+```bash
+python -m pip uninstall xas_simulator
+python -m pip install .
+```

@@ -1,36 +1,26 @@
-import subprocess
-from math import factorial as fact
-import matplotlib.pyplot as plt
-import json
-from IPython.display import display, Math
-from tabulate import tabulate
-from scipy.integrate import romb
 import os
-import numpy as np
+import subprocess
 
 
 class XAS_Lua:
     """
     This class generates a lua file to be used as input by Quanty
-    
+
     """
 
-    def __init__(self, ion, symm, charge, params, params_json, beta=None):
+    def __init__(self, ion, symm, charge, params, params_json, output_path, quanty_path, beta=None):
         self.ion = ion
         fname = ion + '_XAS.lua'
-        TMPDIR = os.getcwd()
-        try:
-            os.mkdir(TMPDIR + '/.tmp/')
-        except:
-            print('Temporary directory exists, using it')
         self.charge = charge
-        self.path = TMPDIR + '/.tmp/'
-        self.filename = TMPDIR + '/.tmp/' + fname
+        self.path = output_path
+        self.filename = os.path.join(output_path, fname)
         self.label = fname
         self.params = params
         self.xdat = params_json
         self.symm = symm
-        self.iondata = params_json['elements'][ion]['charges'][charge]['symmetries'][symm]['experiments']['XAS']['edges']
+        self.Qty_path = quanty_path
+        self.iondata = params_json['elements'][ion]['charges'][charge]['symmetries'][symm]['experiments']['XAS'][
+            'edges']
         if beta is None:
             self.beta = {
                 'F2dd_i': 0.8,
@@ -101,8 +91,8 @@ class XAS_Lua:
             indict = xdat['elements'][ion]['charges'][charge]['configurations'][conf]['terms']['Atomic']['parameters'][
                 'variable']
             findict = \
-            xdat['elements'][ion]['charges'][charge]['configurations'][conf_xas]['terms']['Atomic']['parameters'][
-                'variable']
+                xdat['elements'][ion]['charges'][charge]['configurations'][conf_xas]['terms']['Atomic']['parameters'][
+                    'variable']
             return [indict, findict]
 
         ini, fin = get_atomic_params(self.ion, self.charge, self.xdat, self.params['Nelec'])
@@ -174,11 +164,12 @@ class XAS_Lua:
             conf_xas = '2p5,3d' + str(Nelec + 1)
 
         tendq_i = \
-        self.xdat['elements'][self.ion]['charges'][self.charge]['configurations'][conf]['terms']['Crystal Field'][
-            'symmetries'][self.symm]['parameters']['variable']['10Dq(3d)']
+            self.xdat['elements'][self.ion]['charges'][self.charge]['configurations'][conf]['terms']['Crystal Field'][
+                'symmetries'][self.symm]['parameters']['variable']['10Dq(3d)']
         tendq_f = \
-        self.xdat['elements'][self.ion]['charges'][self.charge]['configurations'][conf_xas]['terms']['Crystal Field'][
-            'symmetries'][self.symm]['parameters']['variable']['10Dq(3d)']
+            self.xdat['elements'][self.ion]['charges'][self.charge]['configurations'][conf_xas]['terms'][
+                'Crystal Field'][
+                'symmetries'][self.symm]['parameters']['variable']['10Dq(3d)']
 
         with open(self.filename, 'a') as f:
             f.write(70 * '-' + '\n-- Define the crystal field term.\n' + 70 * '-' + '\n')
@@ -400,13 +391,14 @@ class XAS_Lua:
         """
         """
         iondata = \
-        self.xdat['elements'][self.ion]['charges'][self.charge]['symmetries'][self.symm]['experiments']['XAS']['edges']
+            self.xdat['elements'][self.ion]['charges'][self.charge]['symmetries'][self.symm]['experiments']['XAS'][
+                'edges']
         Edge = iondata['L2,3 (2p)']['axes'][0][4]
         Gmin = iondata['L2,3 (2p)']['axes'][0][5][0]
         Gmax = iondata['L2,3 (2p)']['axes'][0][5][1]
         Gamma = iondata['L2,3 (2p)']['axes'][0][6]
         Egamma1 = Edge + 10
-        BaseName = self.ion + '_XAS'
+        BaseName = self.path.replace('\\', '/') + '/' + self.ion + '_XAS'
 
         with open(self.filename, 'a') as f:
             f.write(70 * '-' + '\n-- Helper functions for spectra calculations\n' + 70 * '-' + '\n')
@@ -536,8 +528,8 @@ class XAS_Lua:
         """
 
         """
-        iondata = \
-        self.xdat['elements'][self.ion]['charges'][self.charge]['symmetries'][self.symm]['experiments']['XAS']['edges']
+        element_data = self.xdat['elements'][self.ion]['charges'][self.charge]
+        iondata = element_data['symmetries'][self.symm]['experiments']['XAS']['edges']
         Edge = iondata['L2,3 (2p)']['axes'][0][4]
         Gmin = iondata['L2,3 (2p)']['axes'][0][5][0]
         Gmax = iondata['L2,3 (2p)']['axes'][0][5][1]
@@ -547,7 +539,7 @@ class XAS_Lua:
         Emax1 = Edge + 30
         NE1 = 2048
         DenseBorder = 2048
-        Basename = self.ion + '_XAS'
+
         with open(self.filename, 'a') as f:
             f.write(70 * '-' + '\n-- Calculate and save spectra \n' + 70 * '-' + '\n')
             f.write("Sk = Chop(k[1] * Sx + k[2] * Sy + k[3] * Sz)\n")
@@ -680,7 +672,7 @@ class XAS_Lua:
             f.write("    SaveSpectrum(Gv - Gh, 'ld')\n")
             f.write("end\n")
 
-    def run(self, Qty_path):
+    def run(self):
         """
         Runs Quanty with the input file specified by Label.lua, and
         returns the standard output and error (if any)
@@ -690,17 +682,17 @@ class XAS_Lua:
           Qty_path : Path to the Quanty executable (string)
 
         Returns:
-          result   : a subprocess CompltedProcess object 
+          result   : a subprocess CompltedProcess object
                      result.stdout  is the standard output
-                     result.stderr  is the standard error 
+                     result.stderr  is the standard error
         """
-        command = [Qty_path, self.filename]
+        command = [self.Qty_path, self.filename]
         result = subprocess.run(command, capture_output=True, text=True)
         self.result = result
 
     def treat_output(self):
         """
-        From the standar output of a Quanty calculation with the XAS_Template, 
+        From the standar output of a Quanty calculation with the XAS_Template,
         it extracts the relevant expctation value
 
         Arguments:
@@ -733,13 +725,23 @@ class XAS_Lua:
                        'LdotS': LdotS}
 
     def post_proc(self):
+
+        import numpy as np
+        from scipy.integrate import romb
+        from IPython.display import display
+        from tabulate import tabulate
+        import matplotlib.pyplot as plt
+
+        if not hasattr(self, 'outdic'):
+            self.treat_output()
+
         outdic = self.outdic
-        label = self.path + self.ion + '_XAS'
+        label = self.ion + '_XAS'
         ion = self.ion
-        xz = np.loadtxt(label + '_iso.spec', skiprows=5)
-        mcd = np.loadtxt(label + '_cd.spec', skiprows=5)
-        xl = np.loadtxt(label + '_l.spec', skiprows=5)
-        xr = np.loadtxt(label + '_r.spec', skiprows=5)
+        xz = np.loadtxt(os.path.join(self.path, label + '_iso.spec'), skiprows=5)
+        mcd = np.loadtxt(os.path.join(self.path, label + '_cd.spec'), skiprows=5)
+        xl = np.loadtxt(os.path.join(self.path, label + '_l.spec'), skiprows=5)
+        xr = np.loadtxt(os.path.join(self.path, label + '_r.spec'), skiprows=5)
         mcd2 = xr.copy()
         mcd2[:, 2] = xl[:, 2] - xr[:, 2]
         npts = np.shape(xz)[0]
@@ -753,7 +755,7 @@ class XAS_Lua:
 
         dx = xz.copy()
         dx[:, 2] = xl[:, 2] + xr[:, 2] - 2 * xz[:, 2]
-        # ### Integration using Trapezoidal rule 
+        # ### Integration using Trapezoidal rule
 
         nh = 10 - self.params['Nelec']
 
@@ -763,30 +765,37 @@ class XAS_Lua:
             tot0 = np.trapz(xas0[:, 2], xas0[:, 0])
             dx0 = np.trapz(dx[:, 2], dx[:, 0])
         else:
-            tot = romb(xas[:, 2], dx=(xas[1, 0] - xas[0, 0]))
-            tot0 = romb(xas0[:, 2], dx=(xas0[1, 0] - xas0[0, 0]))
-            dx0 = romb(dx[:, 2], dx=(dx[1, 0] - dx[0, 0]))
+            tot = romb(xas[:, 2], dx=float(xas[1, 0] - xas[0, 0]))
+            tot0 = romb(xas0[:, 2], dx=float(xas0[1, 0] - xas0[0, 0]))
+            dx0 = romb(dx[:, 2], dx=float(dx[1, 0] - dx[0, 0]))
 
         deltaXas = dx0 / tot
         if trapz:
 
             lz = -2 * nh * np.trapz(mcd2[:, 2], mcd2[:, 0]) / tot
             szef = 3 / 2 * nh * (
-                        np.trapz(mcd2[0:npts // 2, 2], mcd2[0:npts // 2, 0]) - 2 * np.trapz(mcd2[npts // 2:, 2],
-                                                                                            mcd2[npts // 2:, 0])) / tot
+                    np.trapz(mcd2[0:npts // 2, 2], mcd2[0:npts // 2, 0]) -
+                    2 * np.trapz(mcd2[npts // 2:, 2], mcd2[npts // 2:, 0])
+            ) / tot
             lz0 = -2 * nh * np.trapz(mcd2[:, 2], mcd2[:, 0]) / tot0
             szef0 = 3 / 2 * nh * (
-                        np.trapz(mcd2[0:npts // 2, 2], mcd2[0:npts // 2, 0]) - 2 * np.trapz(mcd2[npts // 2:, 2],
-                                                                                            mcd2[npts // 2:, 0])) / tot0
+                    np.trapz(mcd2[0:npts // 2, 2], mcd2[0:npts // 2, 0]) -
+                    2 * np.trapz(mcd2[npts // 2:, 2], mcd2[npts // 2:, 0])
+            ) / tot0
 
         else:
             print(len(mcd2[npts // 2:, 2]), len(mcd2[0:npts // 2 + 1]))
             mydelta = mcd2[1, 0] - mcd2[0, 0]
-            lz = -2 * nh * romb(mcd2[:, 2], mydelta) / tot
-            szef = 3 / 2 * nh * (romb(mcd2[0:npts // 2 + 1, 2], mydelta) - 2 * romb(mcd2[npts // 2:, 2], mydelta)) / tot
-            lz0 = -2 * nh * romb(mcd2[:, 2], mydelta) / tot0
+            lz = -2 * nh * romb(mcd2[:, 2], float(mydelta)) / tot
+            szef = 3 / 2 * nh * (
+                    romb(mcd2[0:npts // 2 + 1, 2], float(mydelta)) -
+                    2 * romb(mcd2[npts // 2:, 2], float(mydelta))
+            ) / tot
+            lz0 = -2 * nh * romb(mcd2[:, 2], float(mydelta)) / tot0
             szef0 = 3 / 2 * nh * (
-                        romb(mcd2[0:npts // 2 + 1, 2], mydelta) - 2 * romb(mcd2[npts // 2:, 2], mydelta)) / tot0
+                    romb(mcd2[0:npts // 2 + 1, 2], float(mydelta)) -
+                    2 * romb(mcd2[npts // 2:, 2], float(mydelta))
+            ) / tot0
 
         tfmt = 'html'
 
@@ -818,21 +827,85 @@ class XAS_Lua:
                    100 * (abs(Seff_t) - abs(szef0)) / Seff_t]]
         display(tabulate(table4, headers='firstrow', tablefmt=tfmt))
 
+        element_data = self.xdat['elements'][self.ion]['charges'][self.charge]
+        iondata = element_data['symmetries'][self.symm]['experiments']['XAS']['edges']
+        edge = iondata['L2,3 (2p)']['axes'][0][4]
+
         figs, ax = plt.subplots(2, sharex=True, figsize=(10, 10))
         figs.suptitle(label, fontsize=16)
-        ax[0].plot(xz[:, 0], xz[:, 2], 'r--', label='z-pol')
-        ax[0].plot(xl[:, 0], xl[:, 2], 'b', label='left')
-        ax[0].plot(xr[:, 0], xr[:, 2], 'g', label='right')
-        ax[0].set_xlim(-10, 20)
+        ax[0].plot(xz[:, 0] + edge, xz[:, 2], 'r--', label='z-pol')
+        ax[0].plot(xl[:, 0] + edge, xl[:, 2], 'b', label='left')
+        ax[0].plot(xr[:, 0] + edge, xr[:, 2], 'g', label='right')
+        ax[0].set_xlim(-10 + edge, 20 + edge)
         ax[0].legend(fontsize=14)
         ax[0].set_ylabel('Intensity (a.u.)', fontsize=16)
 
-        ax[1].plot(xas[:, 0], xas[:, 2] / 3, 'k', label='average')
-        ax[1].plot(mcd[0:npts // 2, 0], mcd[0:npts // 2, 2], 'r', label=r'L$_3$')
-        ax[1].plot(mcd[npts // 2:, 0], mcd[npts // 2:, 2], 'b', label=r'L$_2$')
-        ax[1].set_xlim(-10, 20)
-        ax[1].legend(fontsize=14)
+        ax[1].plot(xas[:, 0] + edge, xas[:, 2] / 3, 'k', label='average')
+        ax[1].plot(mcd[0:npts // 2, 0] + edge, mcd[0:npts // 2, 2], 'r', label=r'L$_3$')
+        ax[1].plot(mcd[npts // 2:, 0] + edge, mcd[npts // 2:, 2], 'b', label=r'L$_2$')
+        ax[1].set_xlim(-10 + edge, 20 + edge)
+        ax[1].legend(fontsize=14, title='XMCD')
         ax[1].set_ylabel('Intensity (a.u.)', fontsize=16)
         ax[1].set_xlabel('Energy (eV)', fontsize=16)
 
         plt.show()
+
+    def post_proc_output_only(self):
+
+        import numpy as np
+
+        label = self.ion + '_XAS'
+        xz = np.loadtxt(os.path.join(self.path, label + '_iso.spec'), skiprows=5)
+        mcd = np.loadtxt(os.path.join(self.path, label + '_cd.spec'), skiprows=5)
+        xl = np.loadtxt(os.path.join(self.path, label + '_l.spec'), skiprows=5)
+        xr = np.loadtxt(os.path.join(self.path, label + '_r.spec'), skiprows=5)
+
+        mcd2 = xr.copy()
+        mcd2[:, 2] = xl[:, 2] - xr[:, 2]
+
+        # TOTAL spectra
+        xas = xz.copy()
+        xas[:, 2] = xz[:, 2] + xl[:, 2] + xr[:, 2]
+
+        xas0 = xz.copy()
+        xas0[:, 2] = (xl[:, 2] + xr[:, 2]) / 2 + xl[:, 2] + xr[:, 2]
+
+        dx = xz.copy()
+        dx[:, 2] = xl[:, 2] + xr[:, 2] - 2 * xz[:, 2]
+
+        element_data = self.xdat['elements'][self.ion]['charges'][self.charge]
+        iondata = element_data['symmetries'][self.symm]['experiments']['XAS']['edges']
+        edge = iondata['L2,3 (2p)']['axes'][0][4]
+
+        output = {
+            'zpol_energy': xz[:, 0] + edge,
+            'zpol_xas': xz[:, 2],
+            'xas_left_energy': xl[:, 0] + edge,
+            'xas_left': xl[:, 2],
+            'xas_right_energy': xr[:, 0] + edge,
+            'xas_right': xr[:, 2],
+            'average_energy': xas[:, 0] + edge,
+            'average': xas[:, 2] / 3,
+            'xmcd_energy': mcd[:, 0] + edge,
+            'xmcd': mcd[:, 2],
+        }
+        return output
+
+    def run_all_with_output(self):
+        self.write_header()
+        self.H_init()
+        self.setH_terms()
+        self.set_electrons()
+        self.define_atomic_term()
+        self.define_Oh_crystal_field_term()
+        self.define_external_field_term()
+        self.setTemperature()
+        self.setRestrictions()
+        self.set_iterative_solver()
+        self.set_spectra_functions()
+        self.define_transitions([0, 0, 1], [0, 1, 0], [1, 0, 0])
+        self.set_spectra_lists()
+        self.calculate_and_save_spectra()
+        self.run()  # run quanty!
+        return self.post_proc_output_only()
+
