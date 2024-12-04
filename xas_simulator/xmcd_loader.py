@@ -59,8 +59,8 @@ class DataLoader(NXDialog):
         # XMCD parameters
         self.xmcd = GridParameters()
         self.xmcd.add('first', 339089, 'First', spinbox=True)
-        self.xmcd.add('last', 339093, 'Data file specifier', spinbox=True)
-        self.xmcd.add('step', 1, 'Data file specifier', spinbox=True)
+        self.xmcd.add('last', 339093, 'Last', spinbox=True)
+        self.xmcd.add('step', 1, 'Step', spinbox=True)
         self.xmcd.add('energy_path', EN_PATH, 'Energy')
         self.xmcd.add('signal_path', SIGAL_PATH, 'Signal')
         self.xmcd.add('monitor_path', MONITOR_PATH, 'Monitor')
@@ -156,14 +156,23 @@ class DataLoader(NXDialog):
         # Load files for tree
         pc = NXentry(name='pc')
         nc = NXentry(name='nc')
+        # lv = NXentry(name='lv')
+        # lh = NXentry(name='lh')
         regex = re.compile(spec.replace('%d', '(\d+)'))
         for file in scan_files:
             scan_number = regex.findall(os.path.basename(file))[0]
             nx = nxload(file)
-            if nx[pol_path] == 'pc':
+            pol = nx[pol_path]
+            if pol == 'pc':
                 pc[scan_number] = nx['entry']
-            else:
+            elif pol == 'nc':
                 nc[scan_number] = nx['entry']
+            # elif pol == 'lv':
+            #     lv[scan_number] = nx['entry']
+            # elif pol == 'lh':
+            #     lh[scan_number] = nx['entry']
+            else:
+                self._msg(f"file {scan_number} has an unknown polarisation: {pol}")
 
         # for plotting
         en = NXfield(av_energy, name='Energy_eV')
@@ -172,6 +181,9 @@ class DataLoader(NXDialog):
         xmcd = NXdata(NXfield(diff, name='XMCD'), (en,), name='XMCD')
         entry = NXentry(pc, nc, xas1, xas2, xmcd, name='processed')
         xmcd.set_default()
+
+        print(xas2)
+        print(interp_nc)
         # entry.set_default()
         xas1.plot('b-', label='pc')
         xas2.oplot('g-', label='nc')

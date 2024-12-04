@@ -8,19 +8,9 @@ from nexpy.gui.utils import report_error, keep_data, display_message
 from nexusformat.nexus import NeXusError, NXdata, NXfield, NXentry, NXroot
 
 from xas_simulator.params_short import xray_data, parameters
+from xas_simulator.simulation import DEFAULT_QUANTY_PATH, TMPDIR
 from xas_simulator.XMCD_src2 import XAS_Lua
 from .info_dialogue import INFODialog
-
-# DEFAULT_QUANTY_PATH = '/scratch/grp66007/software/xmcd_beamline_simulator/quanty_lin/Quanty'
-DEFAULT_QUANTY_PATH = r"C:\Users\grp66007\Documents\quanty\quanty_win\QuantyWin64.exe"
-
-# Find writable directory
-TMPDIR = tempfile.gettempdir()
-if not os.access(TMPDIR, os.W_OK):
-    TMPDIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-    if not os.access(TMPDIR, os.W_OK):
-        TMPDIR = os.path.expanduser('~')
-print('Writable TEMPDIR = %s' % TMPDIR)
 
 
 def show_dialog():
