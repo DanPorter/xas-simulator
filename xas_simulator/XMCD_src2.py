@@ -742,8 +742,8 @@ class XAS_Lua:
         Tz_t =  float(outdic['T_k']) 
         Seff_t =  float(outdic['S_k'])+float(outdic['T_k']) 
 
-        table1 = [[r'L$_z$', r'S$_{eff}$', r'S$_{z}$', r'T$_{z}$'],
-            [Lz_t,Seff_t, Sz_t, Tz_t]]
+        table1 = [[r'L$_z$', r'T$_{z}$', r'S$_{eff}$', r'S$_{z}$'],
+            [Lz_t, Tz_t, Seff_t, Sz_t]]
 
         print("Theoretical values (Quanty):")
         display(tabulate(table1,headers='firstrow', tablefmt=tfmt))
