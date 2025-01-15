@@ -3,7 +3,7 @@ from nexpy.gui.datadialogs import GridParameters, NXDialog
 from nexpy.gui.widgets import NXMessageBox
 from nexpy.gui.utils import report_error, keep_data
 from nexusformat.nexus import NeXusError, NXdata, NXfield
-from nexpy.consoleapp import _nexpy_dir
+# from nexpy.consoleapp import _nexpy_dir
 import os
 
 def show_dialog():
@@ -70,7 +70,7 @@ class XASDialog(NXDialog):
         from .params_short import parameters
         import json
 
-        qtypath = self.parameters['Qtypath']
+        qtypath = self.parameters['Qtypath'].value
         ion = self.parameters['ion'].value
 
         ch = self.parameters['charge'].value
