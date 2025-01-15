@@ -748,6 +748,9 @@ class XAS_Lua:
         mcd = np.loadtxt(os.path.join(self.path, label + '_cd.spec'), skiprows=5)
         xl = np.loadtxt(os.path.join(self.path, label + '_l.spec'), skiprows=5)
         xr = np.loadtxt(os.path.join(self.path, label + '_r.spec'), skiprows=5)
+        mld = np.loadtxt(os.path.join(self.path, label + '_ld.spec'), skiprows=5)
+        xv=np.loadtxt(os.path.join(self.path, label + '_v.spec'), skiprows=5)
+        xh=np.loadtxt(os.path.join(self.path, label + '_h.spec'), skiprows=5)
         mcd2 = xr.copy()
         mcd2[:, 2] = xl[:, 2] - xr[:, 2]
         npts = np.shape(xz)[0]
@@ -837,7 +840,7 @@ class XAS_Lua:
         iondata = element_data['symmetries'][self.symm]['experiments']['XAS']['edges']
         edge = iondata['L2,3 (2p)']['axes'][0][4]
 
-        figs, ax = plt.subplots(2, sharex=True, figsize=(10, 10))
+        figs, ax = plt.subplots(3, sharex=True, figsize=(10, 12))
         figs.suptitle(label, fontsize=16)
         ax[0].plot(xz[:, 0] + edge, xz[:, 2], 'r--', label='z-pol')
         ax[0].plot(xl[:, 0] + edge, xl[:, 2], 'b', label='left')
@@ -853,6 +856,16 @@ class XAS_Lua:
         ax[1].legend(fontsize=14, title='XMCD')
         ax[1].set_ylabel('Intensity (a.u.)', fontsize=16)
         ax[1].set_xlabel('Energy (eV)', fontsize=16)
+
+        ax[2].plot(xas[:, 0] + edge, xas[:, 2] / 3, 'k', label='average')
+        ax[2].plot(xv[: , 0] + edge, xv[:, 2], 'b--', label=r'Vertical polarization')
+        ax[2].plot(xh[: , 0] + edge, xh[:, 2], 'g:', label=r'Horizontal polarization')
+        ax[2].plot(mld[: , 0] + edge, mld[:, 2], 'r', label=r'Linear dichroism1')
+        ax[2].plot(mld[: , 0] + edge, xv[:,2]-xh[:,2], 'k:', label=r'Linear dichroism2')
+        ax[2].set_xlim(-10 + edge, 20 + edge)
+        ax[2].legend(fontsize=14, title='XMLD')
+        ax[2].set_ylabel('Intensity (a.u.)', fontsize=16)
+        ax[2].set_xlabel('Energy (eV)', fontsize=16)
 
         plt.show()
 
