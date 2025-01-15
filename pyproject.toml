@@ -1,13 +1,21 @@
 [build-system]
-requires = ["setuptools", "setuptools-scm"]
+requires = ["setuptools", "setuptools-scm", "nexpy", "pyqt5"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "xas_simulator"
-version = "0.1.0"
+version = "0.3.0"
 dependencies = [
-    "nexpy", "tabulate"
+    "nexpy",
+    "pyqt5",
+    "hdfmap",
+    "nbformat",
+    "nbconvert",
+    "tabulate"
 ]
+
+[tool.setuptools]
+packages = ["xas_simulator"]
 
 [project.entry-points."nexpy.plugins"]
 xas_simulator = "xas_simulator:plugin_menu"

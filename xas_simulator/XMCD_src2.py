@@ -1,76 +1,70 @@
-import subprocess
-from math import factorial as fact
-import matplotlib.pyplot as plt
-import json
-from IPython.display import display, Math
-from tabulate import tabulate
-from scipy.integrate import romb
 import os
-import numpy as np
-    
+import subprocess
+
+
 class XAS_Lua:
     """
     This class generates a lua file to be used as input by Quanty
-    
+
     """
-    def __init__(self, ion, symm, charge, params, params_json, beta = None):
+
+    def __init__(self, ion, symm, charge, params, params_json, output_path, quanty_path, beta=None):
         self.ion = ion
-        fname = ion+'_XAS.lua'
-        TMPDIR = os.getcwd()
-        try:
-            os.mkdir (TMPDIR+'/.tmp/')
-        except:
-            print ('Temporary directory exists, using it')
+        fname = ion + '_XAS.lua'
         self.charge = charge
-        self.path = TMPDIR+'/.tmp/'
-        self.filename = TMPDIR+'/.tmp/'+fname
-        self.label = fname 
+        self.path = output_path
+        self.filename = os.path.join(output_path, fname)
+        self.label = fname
         self.params = params
         self.xdat = params_json
         self.symm = symm
-        self.iondata =  params_json['elements'][ion]['charges'][charge]['symmetries'][symm]['experiments']['XAS']['edges']
-        if beta == None:
-            self.beta={
-                'F2dd_i':0.8,
-                'F2dd_f':0.8,
-                'F4dd_i':0.8,
-                'F4dd_f':0.8,
-                'zeta_3d':1,
-                'Xzeta_3d':1,
-                'zeta_2p':1,
-                'F2pd_f':0.8,
-                'G1pd_f':0.8,
-                'G3pd_f':0.8
+        self.Qty_path = quanty_path
+        self.iondata = params_json['elements'][ion]['charges'][charge]['symmetries'][symm]['experiments']['XAS'][
+            'edges']
+        if beta is None:
+            self.beta = {
+                'F2dd_i': 0.8,
+                'F2dd_f': 0.8,
+                'F4dd_i': 0.8,
+                'F4dd_f': 0.8,
+                'zeta_3d': 1,
+                'Xzeta_3d': 1,
+                'zeta_2p': 1,
+                'F2pd_f': 0.8,
+                'G1pd_f': 0.8,
+                'G3pd_f': 0.8
             }
+        self.result = None
+        self.outdic = None
 
     def write_header(self):
-        '''Write a header to the Lua file.'''
+        """Write a header to the Lua file."""
         with open(self.filename, 'w') as f:
             f.write('-- This is an auto-generated Lua file.\n\n')
 
     def H_init(self):
-        '''Initialize the Hamiltonians in the Lua file.'''
+        """Initialize the Hamiltonians in the Lua file."""
         with open(self.filename, 'a') as f:
             f.write(70 * '-' + '\n-- Initialize the Hamiltonians.\n' + 70 * '-' + '\n')
             f.write('H_i = 0\n')
             f.write('H_f = 0\n\n')
 
     def setH_terms(self):
-        '''Toggle the Hamiltonian terms based on provided parameters.'''
+        """Toggle the Hamiltonian terms based on provided parameters."""
         with open(self.filename, 'a') as f:
             f.write(70 * '-' + '\n-- Toggle the Hamiltonian terms.\n' + 70 * '-' + '\n')
-            
+
             # Replace placeholders with actual values from the self.params dictionary
             f.write(f'H_atomic = {self.params["H_atomic"]}\n')
             f.write(f'H_crystal_field = {self.params["H_crystal_field"]}\n')
-            #f.write(f'H_3d_ligands_hybridization_lmct = {self.params["H_3d_ligands_hybridization_lmct"]}\n')
-            #f.write(f'H_3d_ligands_hybridization_mlct = {self.params["H_3d_ligands_hybridization_mlct"]}\n')
+            # f.write(f'H_3d_ligands_hybridization_lmct = {self.params["H_3d_ligands_hybridization_lmct"]}\n')
+            # f.write(f'H_3d_ligands_hybridization_mlct = {self.params["H_3d_ligands_hybridization_mlct"]}\n')
             f.write(f'H_magnetic_field = {self.params["H_magnetic_field"]}\n')
             f.write(f'H_exchange_field = {self.params["H_exchange_field"]}\n\n')
 
     def set_electrons(self):
-        '''Set basic electronic information in the Lua file.'''
-        n3d   = self.params['Nelec']
+        """Set basic electronic information in the Lua file."""
+        n3d = self.params['Nelec']
         with open(self.filename, 'a') as f:
             f.write(70 * '-' + '\n-- Basic information about electrons\n' + 70 * '-' + '\n')
             f.write('NBosons = 0\n')
@@ -83,43 +77,51 @@ class XAS_Lua:
             f.write('IndexUp_3d = {7, 9, 11, 13, 15}\n\n')
 
     def define_atomic_term(self):
-        '''
+        """
         Set the atomic part of the Hamiltonian
-        '''
+        """
+
         def get_atomic_params(ion, charge, xdat, Nelec):
-            if str(int(charge[0]) - 2) != 0 :
-                conf = '3d'+ str(Nelec-int(charge[0]) + 2)
-                conf_xas = '2p5,3d'+ str(Nelec-int(charge[0]) + 2 + 1)
-            else: 
-                conf = '3d'+ str(Nelec)
-                conf_xas = '2p5,3d'+ str(Nelec+1)
+            if str(int(charge[0]) - 2) != 0:
+                conf = '3d' + str(Nelec - int(charge[0]) + 2)
+                conf_xas = '2p5,3d' + str(Nelec - int(charge[0]) + 2 + 1)
+            else:
+                conf = '3d' + str(Nelec)
+                conf_xas = '2p5,3d' + str(Nelec + 1)
 
             print(conf, conf_xas)
-            indict = xdat['elements'][ion]['charges'][charge]['configurations'][conf]['terms']['Atomic']['parameters']['variable']
-            findict = xdat['elements'][ion]['charges'][charge]['configurations'][conf_xas]['terms']['Atomic']['parameters']['variable']
-            return [indict,findict]
-        
-        ini, fin = get_atomic_params(self.ion, self.charge, self.xdat,self.params['Nelec'])
+            indict = xdat['elements'][ion]['charges'][charge]['configurations'][conf]['terms']['Atomic']['parameters'][
+                'variable']
+            findict = \
+                xdat['elements'][ion]['charges'][charge]['configurations'][conf_xas]['terms']['Atomic']['parameters'][
+                    'variable']
+            return [indict, findict]
 
-
+        ini, fin = get_atomic_params(self.ion, self.charge, self.xdat, self.params['Nelec'])
 
         with open(self.filename, 'a') as f:
             f.write(70 * '-' + '\n-- Define the atomic term.\n' + 70 * '-' + '\n')
 
             # Define number operators for 2p and 3d orbitals
-            f.write("N_2p = NewOperator('Number', NFermions, IndexUp_2p, IndexUp_2p, {1, 1, 1})\n     + NewOperator('Number', NFermions, IndexDn_2p, IndexDn_2p, {1, 1, 1})\n")
-            f.write("N_3d = NewOperator('Number', NFermions, IndexUp_3d, IndexUp_3d, {1, 1, 1, 1, 1})\n     + NewOperator('Number', NFermions, IndexDn_3d, IndexDn_3d, {1, 1, 1, 1, 1})\n")
+            f.write(
+                "N_2p = NewOperator('Number', NFermions, IndexUp_2p, IndexUp_2p, {1, 1, 1})\n     + NewOperator('Number', NFermions, IndexDn_2p, IndexDn_2p, {1, 1, 1})\n")
+            f.write(
+                "N_3d = NewOperator('Number', NFermions, IndexUp_3d, IndexUp_3d, {1, 1, 1, 1, 1})\n     + NewOperator('Number', NFermions, IndexDn_3d, IndexDn_3d, {1, 1, 1, 1, 1})\n")
 
             # Check condition for H_atomic
             if self.params.get('H_atomic', 1) == 1:
                 f.write("    F0_3d_3d = NewOperator('U', NFermions, IndexUp_3d, IndexDn_3d, {1, 0, 0})\n")
                 f.write("    F2_3d_3d = NewOperator('U', NFermions, IndexUp_3d, IndexDn_3d, {0, 1, 0})\n")
                 f.write("    F4_3d_3d = NewOperator('U', NFermions, IndexUp_3d, IndexDn_3d, {0, 0, 1})\n")
-                    
-                f.write("    F0_2p_3d = NewOperator('U', NFermions, IndexUp_2p, IndexDn_2p, IndexUp_3d, IndexDn_3d, {1, 0}, {0, 0})\n")
-                f.write("    F2_2p_3d = NewOperator('U', NFermions, IndexUp_2p, IndexDn_2p, IndexUp_3d, IndexDn_3d, {0, 1}, {0, 0})\n")
-                f.write("    G1_2p_3d = NewOperator('U', NFermions, IndexUp_2p, IndexDn_2p, IndexUp_3d, IndexDn_3d, {0, 0}, {1, 0})\n")
-                f.write("    G3_2p_3d = NewOperator('U', NFermions, IndexUp_2p, IndexDn_2p, IndexUp_3d, IndexDn_3d, {0, 0}, {0, 1})\n")
+
+                f.write(
+                    "    F0_2p_3d = NewOperator('U', NFermions, IndexUp_2p, IndexDn_2p, IndexUp_3d, IndexDn_3d, {1, 0}, {0, 0})\n")
+                f.write(
+                    "    F2_2p_3d = NewOperator('U', NFermions, IndexUp_2p, IndexDn_2p, IndexUp_3d, IndexDn_3d, {0, 1}, {0, 0})\n")
+                f.write(
+                    "    G1_2p_3d = NewOperator('U', NFermions, IndexUp_2p, IndexDn_2p, IndexUp_3d, IndexDn_3d, {0, 0}, {1, 0})\n")
+                f.write(
+                    "    G3_2p_3d = NewOperator('U', NFermions, IndexUp_2p, IndexDn_2p, IndexUp_3d, IndexDn_3d, {0, 0}, {0, 1})\n")
                 # initial
                 f.write(f"    U_3d_3d_i = {ini['U(3d,3d)']}\n")
                 f.write(f"    F2_3d_3d_i = {ini['F2(3d,3d)']} * {self.beta['F2dd_i']}\n")
@@ -135,9 +137,11 @@ class XAS_Lua:
                 f.write(f"    G1_2p_3d_f = {fin['G1(2p,3d)']} * {self.beta['G1pd_f']}\n")
                 f.write(f"    G3_2p_3d_f = {fin['G3(2p,3d)']} * {self.beta['G3pd_f']}\n")
                 f.write(f"    F0_2p_3d_f = U_2p_3d_f + 1 / 15 * G1_2p_3d_f + 3 / 70 * G3_2p_3d_f\n")
-                
-                f.write("    H_i = H_i + Chop( F0_3d_3d_i * F0_3d_3d + F2_3d_3d_i * F2_3d_3d + F4_3d_3d_i * F4_3d_3d)\n")
-                f.write("    H_f = H_f + Chop( F0_3d_3d_f * F0_3d_3d + F2_3d_3d_f * F2_3d_3d + F4_3d_3d_f * F4_3d_3d + F0_2p_3d_f * F0_2p_3d + F2_2p_3d_f * F2_2p_3d + G1_2p_3d_f * G1_2p_3d + G3_2p_3d_f * G3_2p_3d)\n")                
+
+                f.write(
+                    "    H_i = H_i + Chop( F0_3d_3d_i * F0_3d_3d + F2_3d_3d_i * F2_3d_3d + F4_3d_3d_i * F4_3d_3d)\n")
+                f.write(
+                    "    H_f = H_f + Chop( F0_3d_3d_f * F0_3d_3d + F2_3d_3d_f * F2_3d_3d + F4_3d_3d_f * F4_3d_3d + F0_2p_3d_f * F0_2p_3d + F2_2p_3d_f * F2_2p_3d + G1_2p_3d_f * G1_2p_3d + G3_2p_3d_f * G3_2p_3d)\n")
 
                 f.write("    ldots_3d = NewOperator('ldots', NFermions, IndexUp_3d, IndexDn_3d)\n")
                 f.write("    ldots_2p = NewOperator('ldots', NFermions, IndexUp_2p, IndexDn_2p)\n")
@@ -149,21 +153,25 @@ class XAS_Lua:
                 f.write("    H_i = H_i + Chop( zeta_3d_i * ldots_3d)\n")
                 f.write("    H_f = H_f + Chop( zeta_3d_f * ldots_3d + zeta_2p_f * ldots_2p)\n\n")
 
-
     def define_Oh_crystal_field_term(self):
-        '''
+        """
         Set the crystal field part of the Hamiltonian
-        '''
+        """
         Nelec = self.params['Nelec']
-        if str(int(self.charge[0]) - 2) != 0 :
-            conf = '3d'+ str(Nelec-int(self.charge[0]) + 2)
-            conf_xas = '2p5,3d'+ str(Nelec-int(self.charge[0]) + 2 + 1)
-        else: 
-            conf = '3d'+ str(Nelec)
-            conf_xas = '2p5,3d'+ str(Nelec+1)
+        if str(int(self.charge[0]) - 2) != 0:
+            conf = '3d' + str(Nelec - int(self.charge[0]) + 2)
+            conf_xas = '2p5,3d' + str(Nelec - int(self.charge[0]) + 2 + 1)
+        else:
+            conf = '3d' + str(Nelec)
+            conf_xas = '2p5,3d' + str(Nelec + 1)
 
-        tendq_i =  self.xdat['elements'][self.ion]['charges'][self.charge]['configurations'][conf]['terms']['Crystal Field']['symmetries'][self.symm]['parameters']['variable']['10Dq(3d)']
-        tendq_f =  self.xdat['elements'][self.ion]['charges'][self.charge]['configurations'][conf_xas]['terms']['Crystal Field']['symmetries'][self.symm]['parameters']['variable']['10Dq(3d)']
+        tendq_i = \
+            self.xdat['elements'][self.ion]['charges'][self.charge]['configurations'][conf]['terms']['Crystal Field'][
+                'symmetries'][self.symm]['parameters']['variable']['10Dq(3d)']
+        tendq_f = \
+            self.xdat['elements'][self.ion]['charges'][self.charge]['configurations'][conf_xas]['terms'][
+                'Crystal Field'][
+                'symmetries'][self.symm]['parameters']['variable']['10Dq(3d)']
 
         with open(self.filename, 'a') as f:
             f.write(70 * '-' + '\n-- Define the crystal field term.\n' + 70 * '-' + '\n')
@@ -177,9 +185,9 @@ class XAS_Lua:
                 f.write("H_f = H_f + Chop(tenDq_3d_f * tenDq_3d)\n\n")
 
     def define_external_field_term(self):
-        '''
+        """
         Set the external (magnetic, exchange) field part of the Hamiltonian
-        '''
+        """
         with open(self.filename, 'a') as f:
             f.write(70 * '-' + '\n-- Define the magnetic and exchange field terms.\n' + 70 * '-' + '\n')
 
@@ -236,43 +244,55 @@ class XAS_Lua:
             f.write(f"H_i = H_i + Chop( Hx_i * Sx + Hy_i * Sy + Hz_i * Sz)\n")
             f.write(f"H_f = H_f + Chop( Hx_f * Sx + Hy_f * Sy + Hz_f * Sz)\n\n")
 
-
     def setTemperature(self):
-        '''
+        """
         set temperature
-        '''
+        """
         with open(self.filename, 'a') as f:
             f.write(70 * '-' + '\n-- Define the temperature.\n' + 70 * '-' + '\n')
             f.write(f"T={self.params['T']} * EnergyUnits.Kelvin.value\n\n")
 
     def setRestrictions(self):
-        '''
-        '''
+        """
+        """
         with open(self.filename, 'a') as f:
             f.write(70 * '-' + '\n-- Define the restrictions.\n' + 70 * '-' + '\n')
             f.write("InitialRestrictions = {NFermions, NBosons, {'111111 0000000000', NElectrons_2p, NElectrons_2p},\n")
             f.write("                               {'000000 1111111111', NElectrons_3d, NElectrons_3d}}\n")
 
-            f.write("FinalRestrictions = {NFermions, NBosons, {'111111 0000000000', NElectrons_2p - 1, NElectrons_2p - 1},\n")
+            f.write(
+                "FinalRestrictions = {NFermions, NBosons, {'111111 0000000000', NElectrons_2p - 1, NElectrons_2p - 1},\n")
             f.write("                             {'000000 1111111111', NElectrons_3d + 1, NElectrons_3d + 1}}\n\n")
             if self.params['H_3d_ligands_hybridization_lmct']:
-                f.write("    InitialRestrictions = {NFermions, NBosons, {'111111 0000000000 0000000000', NElectrons_2p, NElectrons_2p},\n")
-                f.write("                                               {'000000 1111111111 0000000000', NElectrons_3d, NElectrons_3d},\n")
-                f.write("                                               {'000000 0000000000 1111111111', NElectrons_L1, NElectrons_L1}}\n\n")
-                f.write("    FinalRestrictions = {NFermions, NBosons, {'111111 0000000000 0000000000', NElectrons_2p - 1, NElectrons_2p - 1},\n")
-                f.write("                                             {'000000 1111111111 0000000000', NElectrons_3d + 1, NElectrons_3d + 1},\n")
-                f.write("                                             {'000000 0000000000 1111111111', NElectrons_L1, NElectrons_L1}}\n\n")
-                f.write("    CalculationRestrictions = {NFermions, NBosons, {'000000 0000000000 1111111111', NElectrons_L1 - (NConfigurations - 1), NElectrons_L1}}\n\n")
+                f.write(
+                    "    InitialRestrictions = {NFermions, NBosons, {'111111 0000000000 0000000000', NElectrons_2p, NElectrons_2p},\n")
+                f.write(
+                    "                                               {'000000 1111111111 0000000000', NElectrons_3d, NElectrons_3d},\n")
+                f.write(
+                    "                                               {'000000 0000000000 1111111111', NElectrons_L1, NElectrons_L1}}\n\n")
+                f.write(
+                    "    FinalRestrictions = {NFermions, NBosons, {'111111 0000000000 0000000000', NElectrons_2p - 1, NElectrons_2p - 1},\n")
+                f.write(
+                    "                                             {'000000 1111111111 0000000000', NElectrons_3d + 1, NElectrons_3d + 1},\n")
+                f.write(
+                    "                                             {'000000 0000000000 1111111111', NElectrons_L1, NElectrons_L1}}\n\n")
+                f.write(
+                    "    CalculationRestrictions = {NFermions, NBosons, {'000000 0000000000 1111111111', NElectrons_L1 - (NConfigurations - 1), NElectrons_L1}}\n\n")
             if self.params['H_3d_ligands_hybridization_mlct']:
-                f.write("    InitialRestrictions = {NFermions, NBosons, {'111111 0000000000 0000000000', NElectrons_2p, NElectrons_2p},\n")
-                f.write("                                               {'000000 1111111111 0000000000', NElectrons_3d, NElectrons_3d},\n")
-                f.write("                                               {'000000 0000000000 1111111111', NElectrons_L2, NElectrons_L2}}\n\n")
-                f.write("    FinalRestrictions = {NFermions, NBosons, {'111111 0000000000 0000000000', NElectrons_2p - 1, NElectrons_2p - 1},\n")
-                f.write("                                             {'000000 1111111111 0000000000', NElectrons_3d + 1, NElectrons_3d + 1},\n")
-                f.write("                                             {'000000 0000000000 1111111111', NElectrons_L2, NElectrons_L2}}\n\n")
-                f.write("    CalculationRestrictions = {NFermions, NBosons, {'000000 0000000000 1111111111', NElectrons_L2, NElectrons_L2 + (NConfigurations - 1)}}\n\n")
-
-
+                f.write(
+                    "    InitialRestrictions = {NFermions, NBosons, {'111111 0000000000 0000000000', NElectrons_2p, NElectrons_2p},\n")
+                f.write(
+                    "                                               {'000000 1111111111 0000000000', NElectrons_3d, NElectrons_3d},\n")
+                f.write(
+                    "                                               {'000000 0000000000 1111111111', NElectrons_L2, NElectrons_L2}}\n\n")
+                f.write(
+                    "    FinalRestrictions = {NFermions, NBosons, {'111111 0000000000 0000000000', NElectrons_2p - 1, NElectrons_2p - 1},\n")
+                f.write(
+                    "                                             {'000000 1111111111 0000000000', NElectrons_3d + 1, NElectrons_3d + 1},\n")
+                f.write(
+                    "                                             {'000000 0000000000 1111111111', NElectrons_L2, NElectrons_L2}}\n\n")
+                f.write(
+                    "    CalculationRestrictions = {NFermions, NBosons, {'000000 0000000000 1111111111', NElectrons_L2, NElectrons_L2 + (NConfigurations - 1)}}\n\n")
 
     def set_iterative_solver(self):
         """
@@ -297,7 +317,8 @@ class XAS_Lua:
             f.write("        if CalculationRestrictions == nil then\n")
             f.write("            Psis_i = Eigensystem(H_i, InitialRestrictions, NPsis)\n")
             f.write("        else\n")
-            f.write("            Psis_i = Eigensystem(H_i, InitialRestrictions, NPsis, {{'restrictions', CalculationRestrictions}})\n")
+            f.write(
+                "            Psis_i = Eigensystem(H_i, InitialRestrictions, NPsis, {{'restrictions', CalculationRestrictions}})\n")
             f.write("        end\n")
             f.write("\n")
             f.write("        if not (type(Psis_i) == 'table') then\n")
@@ -339,7 +360,8 @@ class XAS_Lua:
             f.write("    if CalculationRestrictions == nil then\n")
             f.write("        Psis_i = Eigensystem(H_i, InitialRestrictions, NPsis)\n")
             f.write("    else\n")
-            f.write("        Psis_i = Eigensystem(H_i, InitialRestrictions, NPsis, {{'restrictions', CalculationRestrictions}})\n")
+            f.write(
+                "        Psis_i = Eigensystem(H_i, InitialRestrictions, NPsis, {{'restrictions', CalculationRestrictions}})\n")
             f.write("    end\n")
             f.write("\n")
             f.write("    if not (type(Psis_i) == 'table') then\n")
@@ -368,15 +390,17 @@ class XAS_Lua:
             f.write("end\n")
 
     def set_spectra_functions(self):
-        '''
-        '''
-        iondata = self.xdat['elements'][self.ion]['charges'][self.charge]['symmetries'][self.symm]['experiments']['XAS']['edges']
+        """
+        """
+        iondata = \
+            self.xdat['elements'][self.ion]['charges'][self.charge]['symmetries'][self.symm]['experiments']['XAS'][
+                'edges']
         Edge = iondata['L2,3 (2p)']['axes'][0][4]
         Gmin = iondata['L2,3 (2p)']['axes'][0][5][0]
         Gmax = iondata['L2,3 (2p)']['axes'][0][5][1]
         Gamma = iondata['L2,3 (2p)']['axes'][0][6]
-        Egamma1 = Edge+10
-        BaseName = self.path+self.ion+'_XAS'
+        Egamma1 = Edge + 10
+        BaseName = self.path.replace('\\', '/') + '/' + self.ion + '_XAS'
 
         with open(self.filename, 'a') as f:
             f.write(70 * '-' + '\n-- Helper functions for spectra calculations\n' + 70 * '-' + '\n')
@@ -394,7 +418,7 @@ class XAS_Lua:
             f.write("    -- using the indices argument. The returned spectrum is a weighted\n")
             f.write("    -- sum, where the weights are the Boltzmann probabilities.\n")
             f.write("    if not (type(indices) == 'table') then\n")
-            f.write("        indices = {"+" indices}\n")
+            f.write("        indices = {" + " indices}\n")
             f.write("    end\n")
             f.write("    c = 1\n")
             f.write("    dZSpectrum = {}\n")
@@ -417,25 +441,28 @@ class XAS_Lua:
             f.write(f"    Gmax1 = {Gmax} - {Gamma}\n")
             f.write(f"    Egamma1 = ({Egamma1} - {Edge}) + DeltaE\n")
             f.write("    G.Broaden(0, {{Emin, Gmin1}, {Egamma1, Gmin1}, {Egamma1, Gmax1}, {Emax, Gmax1}})\n")
-            f.write("    G.Print({{'file', '"+f"{BaseName}"+"_' .. suffix .. '.spec'}})\n")
+            f.write("    G.Print({{'file', '" + f"{BaseName}" + "_' .. suffix .. '.spec'}})\n")
             f.write("end\n\n")
 
     def define_transitions(self, kvec, eps11, eps12):
-        '''
-        '''
+        """
+        """
         # polarization information:
 
         with open(self.filename, 'a') as f:
             f.write(70 * '-' + '\n-- Define transitions \n' + 70 * '-' + '\n')
             f.write("t = math.sqrt(1/2)\n")
-            f.write("Tx_2p_3d = NewOperator('CF', NFermions, IndexUp_3d, IndexDn_3d, IndexUp_2p, IndexDn_2p, {{1, -1, t    }, {1, 1, -t    }})\n")
-            f.write("Ty_2p_3d = NewOperator('CF', NFermions, IndexUp_3d, IndexDn_3d, IndexUp_2p, IndexDn_2p, {{1, -1, t * I}, {1, 1,  t * I}})\n")
-            f.write("Tz_2p_3d = NewOperator('CF', NFermions, IndexUp_3d, IndexDn_3d, IndexUp_2p, IndexDn_2p, {{1,  0, 1    }                })\n")
-            f.write("k = { %2d, %2d, %2d }\n"%(kvec[0], kvec[1],kvec[2]))
-            f.write("ev = { %2d, %2d, %2d }\n"%(eps11[0], eps11[1], eps11[2]))
-            f.write("eh = { %2d, %2d, %2d }\n"%(eps12[0], eps12[1], eps12[2]))
-            #f.write(f"ev = {eps11}\n")
-            #f.write(f"eh = {eps12}\n")
+            f.write(
+                "Tx_2p_3d = NewOperator('CF', NFermions, IndexUp_3d, IndexDn_3d, IndexUp_2p, IndexDn_2p, {{1, -1, t    }, {1, 1, -t    }})\n")
+            f.write(
+                "Ty_2p_3d = NewOperator('CF', NFermions, IndexUp_3d, IndexDn_3d, IndexUp_2p, IndexDn_2p, {{1, -1, t * I}, {1, 1,  t * I}})\n")
+            f.write(
+                "Tz_2p_3d = NewOperator('CF', NFermions, IndexUp_3d, IndexDn_3d, IndexUp_2p, IndexDn_2p, {{1,  0, 1    }                })\n")
+            f.write("k = { %2d, %2d, %2d }\n" % (kvec[0], kvec[1], kvec[2]))
+            f.write("ev = { %2d, %2d, %2d }\n" % (eps11[0], eps11[1], eps11[2]))
+            f.write("eh = { %2d, %2d, %2d }\n" % (eps12[0], eps12[1], eps12[2]))
+            # f.write(f"ev = {eps11}\n")
+            # f.write(f"eh = {eps12}\n")
             f.write("-- Calculate the right and left polarization vectors.\n")
             f.write("er = {t * (eh[1] - I * ev[1]),\n")
             f.write("      t * (eh[2] - I * ev[2]),\n")
@@ -455,8 +482,8 @@ class XAS_Lua:
             f.write("Tk_2p_3d = CalculateT(k)\n\n")
 
     def set_spectra_lists(self):
-        '''
-        '''
+        """
+        """
         with open(self.filename, 'a') as f:
             f.write(70 * '-' + '\n-- List of spectra \n' + 70 * '-' + '\n')
             f.write("spectra = {'Isotropic','Circular Dichroism', 'Linear Dichroism'}\n")
@@ -498,22 +525,23 @@ class XAS_Lua:
             f.write("        c = c + 1\n")
             f.write("    end\n")
             f.write("end\n\n")
-    
+
     def calculate_and_save_spectra(self):
-        '''
-        
-        '''
-        iondata = self.xdat['elements'][self.ion]['charges'][self.charge]['symmetries'][self.symm]['experiments']['XAS']['edges']
+        """
+
+        """
+        element_data = self.xdat['elements'][self.ion]['charges'][self.charge]
+        iondata = element_data['symmetries'][self.symm]['experiments']['XAS']['edges']
         Edge = iondata['L2,3 (2p)']['axes'][0][4]
         Gmin = iondata['L2,3 (2p)']['axes'][0][5][0]
         Gmax = iondata['L2,3 (2p)']['axes'][0][5][1]
         Gamma = iondata['L2,3 (2p)']['axes'][0][6]
-        Egamma1 = Edge+10
+        Egamma1 = Edge + 10
         Emin1 = Edge - 10
         Emax1 = Edge + 30
         NE1 = 2048
         DenseBorder = 2048
-        Basename = self.ion+'_XAS'
+
         with open(self.filename, 'a') as f:
             f.write(70 * '-' + '\n-- Calculate and save spectra \n' + 70 * '-' + '\n')
             f.write("Sk = Chop(k[1] * Sx + k[2] * Sy + k[3] * Sz)\n")
@@ -523,37 +551,49 @@ class XAS_Lua:
             f.write("Operators = {H_i, Ssqr, Lsqr, Jsqr, Sk, Lk, Jk, Tk, ldots_3d, N_2p, N_3d, 'dZ'}\n")
             f.write(r"header = 'Analysis of the initial Hamiltonian:\n'")
             f.write("\n")
-            f.write(r"header = header .. '=================================================================================================================================\n'")
+            f.write(
+                r"header = header .. '=================================================================================================================================\n'")
             f.write("\n")
-            f.write(r"header = header .. 'State         <E>     <S^2>     <L^2>     <J^2>      <Sk>      <Lk>      <Jk>      <Tk>     <l.s>    <N_2p>    <N_3d>          dZ\n'")
+            f.write(
+                r"header = header .. 'State         <E>     <S^2>     <L^2>     <J^2>      <Sk>      <Lk>      <Jk>      <Tk>     <l.s>    <N_2p>    <N_3d>          dZ\n'")
             f.write("\n")
-            f.write(r"header = header .. '=================================================================================================================================\n'")
+            f.write(
+                r"header = header .. '=================================================================================================================================\n'")
             f.write("\n")
-            f.write(r"footer = '=================================================================================================================================\n'")
+            f.write(
+                r"footer = '=================================================================================================================================\n'")
             f.write("\n")
             f.write("if H_3d_ligands_hybridization_lmct == 1 then\n")
             f.write("    Operators = {H_i, Ssqr, Lsqr, Jsqr, Sk, Lk, Jk, Tk, ldots_3d, N_2p, N_3d, N_L1, 'dZ'}\n")
             f.write(r"    header = 'Analysis of the initial Hamiltonian:\n'")
             f.write("\n")
-            f.write(r"    header = header .. '===========================================================================================================================================\n'")
+            f.write(
+                r"    header = header .. '===========================================================================================================================================\n'")
             f.write("\n")
-            f.write(r"    header = header .. 'State         <E>     <S^2>     <L^2>     <J^2>      <Sk>      <Lk>      <Jk>      <Tk>     <l.s>    <N_2p>    <N_3d>    <N_L1>          dZ\n'")
+            f.write(
+                r"    header = header .. 'State         <E>     <S^2>     <L^2>     <J^2>      <Sk>      <Lk>      <Jk>      <Tk>     <l.s>    <N_2p>    <N_3d>    <N_L1>          dZ\n'")
             f.write("\n")
-            f.write(r"    header = header .. '===========================================================================================================================================\n'")
+            f.write(
+                r"    header = header .. '===========================================================================================================================================\n'")
             f.write("\n")
-            f.write(r"    footer = '=========================================================================================================================================== \n \n'")
+            f.write(
+                r"    footer = '=========================================================================================================================================== \n \n'")
             f.write("end\n")
             f.write("if H_3d_ligands_hybridization_mlct == 1 then\n")
             f.write("    Operators = {H_i, Ssqr, Lsqr, Jsqr, Sk, Lk, Jk, Tk, ldots_3d, N_2p, N_3d, N_L2, 'dZ'}\n")
             f.write(r"    header = 'Analysis of the initial Hamiltonian:\n'")
             f.write("\n")
-            f.write(r"    header = header .. '===========================================================================================================================================\n'")
+            f.write(
+                r"    header = header .. '===========================================================================================================================================\n'")
             f.write("\n")
-            f.write(r"    header = header .. 'State         <E>     <S^2>     <L^2>     <J^2>      <Sk>      <Lk>      <Jk>      <Tk>     <l.s>    <N_2p>    <N_3d>    <N_L2>          dZ\n'")
+            f.write(
+                r"    header = header .. 'State         <E>     <S^2>     <L^2>     <J^2>      <Sk>      <Lk>      <Jk>      <Tk>     <l.s>    <N_2p>    <N_3d>    <N_L2>          dZ\n'")
             f.write("\n")
-            f.write(r"    header = header .. '===========================================================================================================================================\n'")
+            f.write(
+                r"    header = header .. '===========================================================================================================================================\n'")
             f.write("\n")
-            f.write(r"    footer = '===========================================================================================================================================\n'")
+            f.write(
+                r"    footer = '===========================================================================================================================================\n'")
             f.write("\n")
             f.write("end\n")
             f.write("io.write(header)\n")
@@ -579,9 +619,10 @@ class XAS_Lua:
             f.write("if CalculationRestrictions == nil then\n")
             f.write("    Psis_f = Eigensystem(H_f, FinalRestrictions, 1)\n")
             f.write("else\n")
-            f.write("    Psis_f = Eigensystem(H_f, FinalRestrictions, 1, {{'restrictions', CalculationRestrictions}})\n")
+            f.write(
+                "    Psis_f = Eigensystem(H_f, FinalRestrictions, 1, {{'restrictions', CalculationRestrictions}})\n")
             f.write("end\n")
-            f.write("Psis_f = {"+"Psis_f}\n")
+            f.write("Psis_f = {" + "Psis_f}\n")
             f.write("E_gs_f = Psis_f[1] * H_f * Psis_f[1]\n")
             f.write(f"Eedge1 = {Edge}\n")
             f.write("DeltaE = E_gs_f - E_gs_i\n")
@@ -591,9 +632,11 @@ class XAS_Lua:
             f.write(f"Gamma = {Gamma}\n")
             f.write(f"DenseBorder = {DenseBorder}\n")
             f.write("if CalculationRestrictions == nil then\n")
-            f.write("    G_2p_3d = CreateSpectra(H_f, T_2p_3d, Psis_i, {{'Emin', Emin}, {'Emax', Emax}, {'NE', NE}, {'Gamma', Gamma}, {'DenseBorder', DenseBorder}})\n")
+            f.write(
+                "    G_2p_3d = CreateSpectra(H_f, T_2p_3d, Psis_i, {{'Emin', Emin}, {'Emax', Emax}, {'NE', NE}, {'Gamma', Gamma}, {'DenseBorder', DenseBorder}})\n")
             f.write("else\n")
-            f.write("    G_2p_3d = CreateSpectra(H_f, T_2p_3d, Psis_i, {{'Emin', Emin}, {'Emax', Emax}, {'NE', NE}, {'Gamma', Gamma}, {'restrictions', CalculationRestrictions}, {'DenseBorder', DenseBorder}})\n")
+            f.write(
+                "    G_2p_3d = CreateSpectra(H_f, T_2p_3d, Psis_i, {{'Emin', Emin}, {'Emax', Emax}, {'NE', NE}, {'Gamma', Gamma}, {'restrictions', CalculationRestrictions}, {'DenseBorder', DenseBorder}})\n")
             f.write("end\n")
             f.write("-- Create a list with the Boltzmann probabilities for a given operator\n")
             f.write("-- and state.\n")
@@ -631,7 +674,7 @@ class XAS_Lua:
             f.write("    SaveSpectrum(Gv - Gh, 'ld')\n")
             f.write("end\n")
 
-    def run(self,  Qty_path='/Users/Botel001/Programs/Quanty'):
+    def run(self):
         """
         Runs Quanty with the input file specified by Label.lua, and
         returns the standard output and error (if any)
@@ -641,15 +684,14 @@ class XAS_Lua:
           Qty_path : Path to the Quanty executable (string)
 
         Returns:
-          result   : a subprocess CompltedProcess object 
+          result   : a subprocess CompltedProcess object
                      result.stdout  is the standard output
-                     result.stderr  is the standard error 
+                     result.stderr  is the standard error
         """
-        command = [Qty_path, self.filename]
+        command = [self.Qty_path, self.filename]
         result = subprocess.run(command, capture_output=True, text=True)
         self.result = result
-    
-    
+
     def treat_output(self):
         """
         From the standard output of a Quanty calculation with the XAS_Template, 
@@ -662,14 +704,18 @@ class XAS_Lua:
           A dictionary with the relevant expectation values
 
         """
+        if not self.result:
+            print('Run calculation first!')
+            return
+
         Rawout = self.result
         out = Rawout.stdout.split('\n')
         rline = 0
         for iline in range(len(out)):
             if '!*!' in out[iline]:
-                #print(out[iline-2])
-                #print(out[iline])
-                rline=iline
+                # print(out[iline-2])
+                # print(out[iline])
+                rline = iline
 
         Odata = out[rline].split()
         E = Odata[2]
@@ -681,106 +727,191 @@ class XAS_Lua:
         J_k = Odata[8]
         T_k = Odata[9]
         LdotS = Odata[10]
-        self.outdic = {'E':E,'S2':S2,'L2':L2,'J2':J2,'S_k':S_k,'L_k':L_k,'J_k':J_k,'T_k':T_k,'LdotS':LdotS}
+        self.outdic = {'E': E, 'S2': S2, 'L2': L2, 'J2': J2, 'S_k': S_k, 'L_k': L_k, 'J_k': J_k, 'T_k': T_k,
+                       'LdotS': LdotS}
 
     def post_proc(self):
+
+        import numpy as np
+        from scipy.integrate import romb
+        from IPython.display import display
+        from tabulate import tabulate
+        import matplotlib.pyplot as plt
+
+        if not self.outdic:
+            self.treat_output()
+
         outdic = self.outdic
-        label = self.path + self.ion + '_XAS'
+        label = self.ion + '_XAS'
         ion = self.ion
-        xz = np.loadtxt(label+'_iso.spec', skiprows=5)
-        mcd =  np.loadtxt(label+'_cd.spec', skiprows=5)
-        xl =  np.loadtxt(label+'_l.spec', skiprows=5)
-        xr =  np.loadtxt(label+'_r.spec', skiprows=5)
+        xz = np.loadtxt(os.path.join(self.path, label + '_iso.spec'), skiprows=5)
+        mcd = np.loadtxt(os.path.join(self.path, label + '_cd.spec'), skiprows=5)
+        xl = np.loadtxt(os.path.join(self.path, label + '_l.spec'), skiprows=5)
+        xr = np.loadtxt(os.path.join(self.path, label + '_r.spec'), skiprows=5)
         mcd2 = xr.copy()
-        mcd2[:,2]=xl[:,2]-xr[:,2]
+        mcd2[:, 2] = xl[:, 2] - xr[:, 2]
         npts = np.shape(xz)[0]
         mcd2 = mcd
         # TOTAL spectra
         xas = xz.copy()
-        xas[:,2] = xz[:,2]+xl[:,2]+xr[:,2]
+        xas[:, 2] = xz[:, 2] + xl[:, 2] + xr[:, 2]
 
         xas0 = xz.copy()
-        xas0[:,2] =  (xl[:,2]+xr[:,2])/2+xl[:,2]+xr[:,2]
+        xas0[:, 2] = (xl[:, 2] + xr[:, 2]) / 2 + xl[:, 2] + xr[:, 2]
 
         dx = xz.copy()
-        dx[:,2] = xl[:,2] + xr[:,2] - 2*xz[:,2]
-        # ### Integration using Trapezoidal rule 
+        dx[:, 2] = xl[:, 2] + xr[:, 2] - 2 * xz[:, 2]
+        # ### Integration using Trapezoidal rule
 
-        nh = 10- self.params['Nelec']
+        nh = 10 - self.params['Nelec']
 
-        trapz=False
-        if trapz :
-            tot = np.trapz(xas[:,2],xas[:,0])
-            tot0 = np.trapz(xas0[:,2],xas0[:,0])
-            dx0 = np.trapz(dx[:,2], dx[:,0])
+        trapz = False
+        if trapz:
+            tot = np.trapz(xas[:, 2], xas[:, 0])
+            tot0 = np.trapz(xas0[:, 2], xas0[:, 0])
+            dx0 = np.trapz(dx[:, 2], dx[:, 0])
         else:
-            tot = romb(xas[:,2],dx =(xas[1,0]-xas[0,0]))
-            tot0 = romb(xas0[:,2],dx=(xas0[1,0]-xas0[0,0]))
-            dx0 = romb(dx[:,2], dx=(dx[1,0]-dx[0,0]))
+            tot = romb(xas[:, 2], dx=float(xas[1, 0] - xas[0, 0]))
+            tot0 = romb(xas0[:, 2], dx=float(xas0[1, 0] - xas0[0, 0]))
+            dx0 = romb(dx[:, 2], dx=float(dx[1, 0] - dx[0, 0]))
 
-
-        deltaXas = dx0 /tot
+        deltaXas = dx0 / tot
         if trapz:
 
-            lz = -2*nh*np.trapz(mcd2[:,2], mcd2[:,0])/tot
-            szef = 3/2*nh*(np.trapz(mcd2[0:npts//2,2], mcd2[0:npts//2,0])-2*np.trapz(mcd2[npts//2:,2], mcd2[npts//2:,0]))/tot
-            lz0 = -2*nh*np.trapz(mcd2[:,2], mcd2[:,0])/tot0
-            szef0 = 3/2*nh*(np.trapz(mcd2[0:npts//2,2], mcd2[0:npts//2,0])-2*np.trapz(mcd2[npts//2:,2], mcd2[npts//2:,0]))/tot0
+            lz = -2 * nh * np.trapz(mcd2[:, 2], mcd2[:, 0]) / tot
+            szef = 3 / 2 * nh * (
+                    np.trapz(mcd2[0:npts // 2, 2], mcd2[0:npts // 2, 0]) -
+                    2 * np.trapz(mcd2[npts // 2:, 2], mcd2[npts // 2:, 0])
+            ) / tot
+            lz0 = -2 * nh * np.trapz(mcd2[:, 2], mcd2[:, 0]) / tot0
+            szef0 = 3 / 2 * nh * (
+                    np.trapz(mcd2[0:npts // 2, 2], mcd2[0:npts // 2, 0]) -
+                    2 * np.trapz(mcd2[npts // 2:, 2], mcd2[npts // 2:, 0])
+            ) / tot0
 
         else:
-            print(len(mcd2[npts//2:,2]), len(mcd2[0:npts//2+1]))
-            mydelta=mcd2[1,0]-mcd2[0,0]
-            lz = -2*nh*romb(mcd2[:,2],mydelta)/tot
-            szef = 3/2*nh*(romb(mcd2[0:npts//2+1,2],mydelta)-2*romb(mcd2[npts//2:,2], mydelta))/tot
-            lz0 = -2*nh*romb(mcd2[:,2],mydelta)/tot0
-            szef0 = 3/2*nh*(romb(mcd2[0:npts//2+1,2],mydelta)-2*romb(mcd2[npts//2:,2],mydelta))/tot0
+            print(len(mcd2[npts // 2:, 2]), len(mcd2[0:npts // 2 + 1]))
+            mydelta = mcd2[1, 0] - mcd2[0, 0]
+            lz = -2 * nh * romb(mcd2[:, 2], float(mydelta)) / tot
+            szef = 3 / 2 * nh * (
+                    romb(mcd2[0:npts // 2 + 1, 2], float(mydelta)) -
+                    2 * romb(mcd2[npts // 2:, 2], float(mydelta))
+            ) / tot
+            lz0 = -2 * nh * romb(mcd2[:, 2], float(mydelta)) / tot0
+            szef0 = 3 / 2 * nh * (
+                    romb(mcd2[0:npts // 2 + 1, 2], float(mydelta)) -
+                    2 * romb(mcd2[npts // 2:, 2], float(mydelta))
+            ) / tot0
 
         tfmt = 'html'
 
         Lz_t = float(outdic['L_k'])
-        Sz_t =  float(outdic['S_k'])
-        Tz_t =  float(outdic['T_k']) 
-        Seff_t =  float(outdic['S_k'])+float(outdic['T_k']) 
+        Sz_t = float(outdic['S_k'])
+        Tz_t = float(outdic['T_k'])
+        Seff_t = float(outdic['S_k']) + float(outdic['T_k'])
 
         table1 = [[r'L$_z$', r'T$_{z}$',  r'S$_{z}$', r'S$_{eff}$'],
                   [Lz_t, Tz_t, Sz_t, Seff_t]]
 
         print("Theoretical values (Quanty):")
-        display(tabulate(table1,headers='firstrow', tablefmt=tfmt))
+        display(tabulate(table1, headers='firstrow', tablefmt=tfmt))
 
         print("Sum rules :")
-        table2 = [[r'sL$_z$', 'sS$_{eff}$'],[lz, szef]]
-        display(tabulate(table2,headers='firstrow', tablefmt=tfmt))
+        table2 = [[r'sL$_z$', 'sS$_{eff}$'], [lz, szef]]
+        display(tabulate(table2, headers='firstrow', tablefmt=tfmt))
 
         print("Sum rules 0:")
-        table3 = [[r's$_0$L$_z$', 's$_0$S$_{eff}$'],[lz0, szef0]]
-        display(tabulate(table3,headers='firstrow', tablefmt=tfmt))
+        table3 = [[r's$_0$L$_z$', 's$_0$S$_{eff}$'], [lz0, szef0]]
+        display(tabulate(table3, headers='firstrow', tablefmt=tfmt))
 
         print("Deviations:")
-        table4 =[[r'$\Delta$XAS (%)', r'$\Delta$L$_{z}$ (%)', r'$\Delta$S$_{eff}$ (%)',
-                  r'$\Delta_0$L$_{z}$ (%)', r'$\Delta_0$S$_{eff}$ (%)'],
-                 [deltaXas*100,100*(abs(Lz_t) -abs(lz))/Lz_t,
-                  100*(abs(Seff_t)-abs(szef))/Seff_t,
-                  100*(abs(Lz_t) -abs(lz0))/Lz_t,
-                  100*(abs(Seff_t)-abs(szef0))/Seff_t  ]]
-        display(tabulate(table4,headers='firstrow', tablefmt=tfmt))
+        table4 = [[r'$\Delta$XAS (%)', r'$\Delta$L$_{z}$ (%)', r'$\Delta$S$_{eff}$ (%)',
+                   r'$\Delta_0$L$_{z}$ (%)', r'$\Delta_0$S$_{eff}$ (%)'],
+                  [deltaXas * 100, 100 * (abs(Lz_t) - abs(lz)) / Lz_t,
+                   100 * (abs(Seff_t) - abs(szef)) / Seff_t,
+                   100 * (abs(Lz_t) - abs(lz0)) / Lz_t,
+                   100 * (abs(Seff_t) - abs(szef0)) / Seff_t]]
+        display(tabulate(table4, headers='firstrow', tablefmt=tfmt))
 
-        figs, ax = plt.subplots(2, sharex=True, figsize=(10,10))
+        element_data = self.xdat['elements'][self.ion]['charges'][self.charge]
+        iondata = element_data['symmetries'][self.symm]['experiments']['XAS']['edges']
+        edge = iondata['L2,3 (2p)']['axes'][0][4]
+
+        figs, ax = plt.subplots(2, sharex=True, figsize=(10, 10))
         figs.suptitle(label, fontsize=16)
-        ax[0].plot(xz[:,0], xz[:,2], 'r--',label='z-pol')
-        ax[0].plot(xl[:,0], xl[:,2], 'b', label='left')
-        ax[0].plot(xr[:,0], xr[:,2], 'g',label='right')
-        ax[0].set_xlim(-10,20)
+        ax[0].plot(xz[:, 0] + edge, xz[:, 2], 'r--', label='z-pol')
+        ax[0].plot(xl[:, 0] + edge, xl[:, 2], 'b', label='left')
+        ax[0].plot(xr[:, 0] + edge, xr[:, 2], 'g', label='right')
+        ax[0].set_xlim(-10 + edge, 20 + edge)
         ax[0].legend(fontsize=14)
         ax[0].set_ylabel('Intensity (a.u.)', fontsize=16)
 
-        ax[1].plot(xas[:,0], xas[:,2]/3, 'k', label='average')
-        ax[1].plot(mcd[0:npts//2,0], mcd[0:npts//2,2],'r', label= r'L$_3$')
-        ax[1].plot(mcd[npts//2:,0], mcd[npts//2:,2],'b', label= r'L$_2$')
-        ax[1].set_xlim(-10,20)
-        ax[1].legend(fontsize=14)
+        ax[1].plot(xas[:, 0] + edge, xas[:, 2] / 3, 'k', label='average')
+        ax[1].plot(mcd[0:npts // 2, 0] + edge, mcd[0:npts // 2, 2], 'r', label=r'L$_3$')
+        ax[1].plot(mcd[npts // 2:, 0] + edge, mcd[npts // 2:, 2], 'b', label=r'L$_2$')
+        ax[1].set_xlim(-10 + edge, 20 + edge)
+        ax[1].legend(fontsize=14, title='XMCD')
         ax[1].set_ylabel('Intensity (a.u.)', fontsize=16)
         ax[1].set_xlabel('Energy (eV)', fontsize=16)
 
         plt.show()
-    
+
+    def post_proc_output_only(self):
+
+        import numpy as np
+
+        label = self.ion + '_XAS'
+        xz = np.loadtxt(os.path.join(self.path, label + '_iso.spec'), skiprows=5)
+        mcd = np.loadtxt(os.path.join(self.path, label + '_cd.spec'), skiprows=5)
+        xl = np.loadtxt(os.path.join(self.path, label + '_l.spec'), skiprows=5)
+        xr = np.loadtxt(os.path.join(self.path, label + '_r.spec'), skiprows=5)
+
+        mcd2 = xr.copy()
+        mcd2[:, 2] = xl[:, 2] - xr[:, 2]
+
+        # TOTAL spectra
+        xas = xz.copy()
+        xas[:, 2] = xz[:, 2] + xl[:, 2] + xr[:, 2]
+
+        xas0 = xz.copy()
+        xas0[:, 2] = (xl[:, 2] + xr[:, 2]) / 2 + xl[:, 2] + xr[:, 2]
+
+        dx = xz.copy()
+        dx[:, 2] = xl[:, 2] + xr[:, 2] - 2 * xz[:, 2]
+
+        element_data = self.xdat['elements'][self.ion]['charges'][self.charge]
+        iondata = element_data['symmetries'][self.symm]['experiments']['XAS']['edges']
+        edge = iondata['L2,3 (2p)']['axes'][0][4]
+
+        output = {
+            'zpol_energy': xz[:, 0] + edge,
+            'zpol_xas': xz[:, 2],
+            'xas_left_energy': xl[:, 0] + edge,
+            'xas_left': xl[:, 2],
+            'xas_right_energy': xr[:, 0] + edge,
+            'xas_right': xr[:, 2],
+            'average_energy': xas[:, 0] + edge,
+            'average': xas[:, 2] / 3,
+            'xmcd_energy': mcd[:, 0] + edge,
+            'xmcd': mcd[:, 2],
+        }
+        return output
+
+    def run_all_with_output(self):
+        self.write_header()
+        self.H_init()
+        self.setH_terms()
+        self.set_electrons()
+        self.define_atomic_term()
+        self.define_Oh_crystal_field_term()
+        self.define_external_field_term()
+        self.setTemperature()
+        self.setRestrictions()
+        self.set_iterative_solver()
+        self.set_spectra_functions()
+        self.define_transitions([0, 0, 1], [0, 1, 0], [1, 0, 0])
+        self.set_spectra_lists()
+        self.calculate_and_save_spectra()
+        self.run()  # run quanty!
+        return self.post_proc_output_only()
+

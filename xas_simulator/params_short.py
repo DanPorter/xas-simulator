@@ -1,4 +1,17 @@
+"""
+Atomic & X-Ray parameters
+"""
 
+import os
+import json
+
+PARAMETERS_FILE = os.path.dirname(__file__) + '/parameters.json'
+
+# x-ray parameters
+with open(PARAMETERS_FILE, 'r', encoding='utf-8') as f:
+    xray_data = json.load(f, )
+
+# Atomic parameters
 parameters = {
     "Cu": {
         "Nelec": 9,
