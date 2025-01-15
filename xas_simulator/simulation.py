@@ -19,7 +19,8 @@ print('Writable TEMPDIR = %s' % TMPDIR)
 
 
 def create_simulation(ion: str, ch: float, beta: float, dq: float, mag_field: tuple[float, float, float],
-                      exchange_field: tuple[float, float, float], temperature: float) -> XAS_Lua:
+                      exchange_field: tuple[float, float, float], temperature: float,
+                      quanty_path=DEFAULT_QUANTY_PATH) -> XAS_Lua:
     """
     Generate parameters for Quanty Simulation
     """
@@ -67,7 +68,7 @@ def create_simulation(ion: str, ch: float, beta: float, dq: float, mag_field: tu
         params=calculation_parameters,
         params_json=xray_data,
         output_path=TMPDIR,
-        quanty_path=DEFAULT_QUANTY_PATH,
+        quanty_path=quanty_path,
     )
     return simulation
 

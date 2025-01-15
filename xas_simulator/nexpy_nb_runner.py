@@ -13,10 +13,12 @@ from nexpy.gui.pyqt import QtWidgets
 from nexpy.gui.utils import report_error, display_message
 from nexusformat.nexus import NeXusError
 
-from xas_simulator.notebook_runner import xas_notebook
+from xas_simulator.notebook_runner import xas_notebook, launch_server
 
-DEFAULT_DATA_PATH = '/dls/i06-1/data/2024/'
+# DEFAULT_DATA_PATH = '/dls/i06-1/data/2024/'
+DEFAULT_DATA_PATH = '/scratch/grp66007/data/i06/mm36794-1'
 DEFAULT_PATH_SPEC = 'i06-1-%d.nxs'
+DEFAULT_OUTPUT = '/scratch/grp66007/data/i06/mm36794-1/processing'
 DEFAULT_QUANTY_PATH = 'Quanty'
 
 
@@ -38,15 +40,16 @@ class NBRunner(NXDialog):
         self.experiment = GridParameters()
         self.experiment.add('Data path', DEFAULT_DATA_PATH, 'Experiment data path')
         self.experiment.add('path spec', DEFAULT_PATH_SPEC, 'Data file specifier')
+        self.experiment.add('output', DEFAULT_OUTPUT, 'Output path')
 
         # Data file parameters
         self.files = GridParameters()
-        self.files.add('first', 339089, 'First', spinbox=True)
-        self.files.add('last', 339093, 'Last', spinbox=True)
+        self.files.add('first', 336801, 'First', spinbox=True)
+        self.files.add('last', 336804, 'Last', spinbox=True)
         self.files.add('step', 1, 'Step', spinbox=True)
 
         self.parameters = GridParameters()
-        self.parameters.add('Quanty path', DEFAULT_QUANTY_PATH, 'Quanty path')
+        self.parameters.add('qtypath', DEFAULT_QUANTY_PATH, 'Quanty path')
         self.parameters.add('ion', 'Ni', 'Ion Name')
         self.parameters.add('charge', 2, 'Charge')
         self.parameters.add('beta', 0.8, 'Beta')
@@ -67,7 +70,8 @@ class NBRunner(NXDialog):
             self.files.grid(header=False, width=300),
             'stretch',
             self.parameters.grid(header=False, width=300),
-            self.action_buttons(('Launch Notebook', self.launch_notebook))
+            self.action_buttons(('Run Notebook', self.run_notebook)),
+            self.action_buttons(('View Notebook', self.launch_notebook))
         )
         self.set_title('XMCD Data Loader')
 
@@ -81,6 +85,7 @@ class NBRunner(NXDialog):
         if directory is None or not os.path.exists(directory):
             return
         self.experiment['Data path'].value = directory
+        self.experiment['output'].value = directory + '/processing'
         last_scan = self.get_last_scan_number()
         self.files['first'].value = last_scan - 10
         self.files['last'].value = last_scan
@@ -98,19 +103,24 @@ class NBRunner(NXDialog):
             return int(scan_numbers[-1])
         return 0
 
-    def launch_notebook(self):
+    def run_notebook(self):
         path = self.experiment['Data path'].value
         spec = self.experiment['path spec'].value
-        first = self.files['first'].value
-        last = self.files['last'].value
-        step = self.files['step'].value
+        output_path = self.experiment['output'].value
+        first = int(self.files['first'].value)
+        last = int(self.files['last'].value)
+        step = int(self.files['step'].value)
+        # filenames = [
+        #     path for scanno in range(first, last + step, step)
+        #     if h5py.is_hdf5(path := os.path.join(path, spec % scanno))
+        # ]
         filenames = [
-            path for scanno in range(first, last + step, step)
-            if h5py.is_hdf5(path := os.path.join(path, spec % scanno))
+            os.path.join(path, spec % scanno) for scanno in range(first, last + step, step)
         ]
-        output_file = os.path.join(path, 'processing', f'xas_notebook_{first}_{last}.ipynb')
+        output_name = f'xas_notebook_{first}_{last}.ipynb'
+        output_file = os.path.join(output_path, output_name)
 
-        qtypath = self.parameters['Qtypath'].value
+        qtypath = self.parameters['qtypath'].value
         ion = self.parameters['ion'].value
         ch = int(self.parameters['charge'].value)
         beta = self.parameters['beta'].value
@@ -130,6 +140,7 @@ class NBRunner(NXDialog):
             'mag_field': mag_field,
             'exchange_field': exchange_field,
             'temperature': temperature,
+            'quanty_path': qtypath,
         }
         xas_notebook(
             files=filenames,
@@ -137,3 +148,20 @@ class NBRunner(NXDialog):
             output_file=output_file
         )
         self.display_message(f'Calculation finished, created\n{output_file}')
+
+    def launch_notebook(self):
+        """
+        Launch jupyter notebook server
+        """
+        path = self.experiment['Data path'].value
+        spec = self.experiment['path spec'].value
+        output_path = self.experiment['output'].value
+        first = int(self.files['first'].value)
+        last = int(self.files['last'].value)
+        output_name = f'xas_notebook_{first}_{last}.ipynb'
+        output_file = os.path.join(output_path, output_name)
+
+        if not os.path.isfile(output_file):
+            self.display_message(f'Run the calculation first!')
+
+        launch_server(output_file)

@@ -8,6 +8,7 @@ Jupyter notebook runner
 """
 
 import os
+import subprocess
 import nbformat
 from nbconvert.preprocessors import ExecutePreprocessor
 from nbconvert import HTMLExporter
@@ -52,6 +53,13 @@ def process_notebook(template_notebook: str, output_notebook: str, first_cell_co
     print('Completed. HTML written to %s' % output_html)
 
 
+def launch_server(notebook_file = ''):
+    """
+    Launch jupyter notebook server for a single file
+    """
+    shell_cmd = f"gnome-terminal -- bash -c \"jupyter notebook {notebook_file}; exec bash\""
+    subprocess.Popen(shell_cmd, shell=True)
+
 def xas_notebook(files: list, simulation: dict, output_file: str):
     """
     process an xas notebook
@@ -62,4 +70,5 @@ def xas_notebook(files: list, simulation: dict, output_file: str):
             '\n]\n' +
             f"sim_data = {str(simulation)}"
     )
-    process_notebook('notebooks/xas_notebook.ipynb', output_file, cell_str)
+    notebook_path = os.path.join(os.path.dirname(__file__), 'notebooks')
+    process_notebook(os.path.join(notebook_path, 'xas_notebook.ipynb'), output_file, cell_str)
