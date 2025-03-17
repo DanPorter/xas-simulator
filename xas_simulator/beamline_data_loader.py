@@ -23,7 +23,7 @@ VALUES = {
     'temp': '(T_sample|lakeshore336_sample?(300))',
     'rot': '(scmth|xabs_theta|ddiff_theta?(0))',
     'field': 'field_x?(0), field_y?(0), field_z?(0)',
-    'energy': '(fastEnergy|pgm_energy|energy)',
+    'energy': '(fastEnergy|pgm_energy|pgmenergy|energy)',
     'monitor': '(C2|ca62sr)',
     'tey': '(C1|ca61sr) / (C2|ca62sr)',
     'tfy': '(C3|ca63sr) / (C2|ca62sr)',
@@ -54,19 +54,28 @@ MARKDOWN = """
  - pol = {polarisation?("lh")}
  - T = {(T_sample|lakeshore336_sample?(300)):.2f} K
  - B = {np.sqrt(np.sum(np.square([field_x?(0), field_y?(0), field_z?(0)]))):.2f} T
- - E = {np.mean((fastEnergy|pgm_energy|energy?(0))):.2f} eV
+ - E = {np.mean((fastEnergy|pgm_energy|pgmenergy|energy?(0))):.2f} eV
 """
 
 
-def get_scan_paths(filename):
+def get_scan_paths(filename, signal_name=None):
     """
     Return hdf dataset paths
     """
     nxmap = hdfmap.create_nexus_map(filename)
 
-    energy_path = nxmap.scannables['pgmenergy']
-    signal_path = nxmap.scannables['C3']
-    monitor_path = nxmap.scannables['C2']
+    if 'pgmenergy' in nxmap.scannables: # i06-1
+        signal_name = signal_name if signal_name in nxmap.scannables else 'C1'
+        energy_path = nxmap.scannables['pgmenergy']
+        signal_path = nxmap.scannables[signal_name]  # TEY
+        monitor_path = nxmap.scannables['C2']
+    elif 'pgm_energy' in nxmap.scannables: # i10-1
+        signal_name = signal_name if signal_name in nxmap.scannables else 'mcse17'
+        energy_path = nxmap.scannables['pgm_energy']
+        signal_path = nxmap.scannables[signal_name]  # TEY
+        monitor_path = nxmap.scannables['mcse16']
+    else:
+        raise Exception('currently only configured for i06-1 and i10-1')
     pol_path = nxmap['polarisation']
     return energy_path, signal_path, monitor_path, pol_path
 
@@ -112,17 +121,17 @@ class Experiment:
 
         nxmap = hdfmap.create_nexus_map(filepath)
 
-        axes_paths, signal_path = nxmap.nexus_defaults()
+        axes_paths, signal_paths = nxmap.nexus_defaults()
         axes_name = nxmap.datasets[axes_paths[0]].name
-        signal_name = nxmap.datasets[signal_path].name
+        signal_name = nxmap.datasets[signal_paths[0]].name
 
         with nxmap.load_hdf() as hdf:
             axes_data = nxmap.eval(hdf, axes_name)
             signal_data = nxmap.eval(hdf, signal_name)
             scan_data = nxmap.get_scannables(hdf)
             rsp = nxmap.format_hdf(hdf, self.markdown_format)
-            energy = nxmap.eval(hdf, 'pgmenergy')
-            xas = nxmap.eval(hdf, 'C3 / C2')
+            energy = nxmap.eval(hdf, '(pgmenergy|pgm_energy)')
+            xas = nxmap.eval(hdf, '(C1|mcse17) / (C2|mcse16)')
 
         if not issubclass(type(axes_data), np.ndarray) or not np.issubdtype(axes_data.dtype, np.number) or len(
                 axes_data) != nxmap.scannables_length():
@@ -140,7 +149,7 @@ class Experiment:
 
         ax2.plot(energy, xas, '-')
         ax2.set_xlabel('Energy [eV]')
-        ax2.set_ylabel('C3 / C2')
+        ax2.set_ylabel('TEY / Monitor')
 
         plt.show()
         display(Markdown(rsp))

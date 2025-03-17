@@ -4,6 +4,7 @@ XMCD Analysis
 
 import numpy as np
 from scipy.optimize import minimize
+from lmfit.models import LinearModel
 import h5py
 
 
@@ -47,6 +48,38 @@ def calculate_xmcd(file_list: list[str], energy_path: str, signal_path: str, pol
     interp_nc = combine_energy_scans(av_energy, *nc)
     diff = interp_nc - interp_pc
     return av_energy, interp_pc, interp_nc, diff
+
+
+def subtract_flat_background(energy, signal, ev_from_start=5.):
+    """Subtract flat background"""
+    bkg = np.mean(signal[energy < np.min(energy) + ev_from_start])
+    return np.subtract(signal, bkg)
+
+
+def signal_jump(energy, signal, ev_from_start=5., ev_from_end=None):
+    """Return signal jump from start to end"""
+    ev_from_end = ev_from_end or ev_from_start
+    ini_signal = np.mean(signal[energy < np.max(energy) + ev_from_end])
+    fnl_signal = np.mean(signal[energy > np.max(energy) - ev_from_start])
+    return fnl_signal - ini_signal
+
+
+def normalise_background(energy, signal, ev_from_start=5.):
+    """Normalise background to one"""
+    bkg = np.mean(signal[energy < np.min(energy) + ev_from_start])
+    return np.divide(signal, bkg)
+
+
+def fit_linear_background(energy, signal, ev_from_start=5.):
+    """Use lmfit to determine sloping background"""
+    model = LinearModel(prefix='bkg_')
+    region = energy < np.min(energy) + ev_from_start
+    en_region = energy[region]
+    sig_region = signal[region]
+    pars = model.guess(sig_region, x=en_region)
+    fit_output = model.fit(sig_region, pars, x=en_region)
+    bkg = fit_output.eval(x=energy)
+    return signal - bkg
 
 
 def spectra_difference(energy_1, signal_1, energy_2, signal_2):

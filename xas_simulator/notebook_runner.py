@@ -9,6 +9,7 @@ Jupyter notebook runner
 
 import os
 import subprocess
+import webbrowser
 import nbformat
 from nbconvert.preprocessors import ExecutePreprocessor
 from nbconvert import HTMLExporter
@@ -53,12 +54,18 @@ def process_notebook(template_notebook: str, output_notebook: str, first_cell_co
     print('Completed. HTML written to %s' % output_html)
 
 
+def launch_browser(url):
+    """Open the default browser"""
+    webbrowser.open_new_tab(url)
+
+
 def launch_server(notebook_file = ''):
     """
     Launch jupyter notebook server for a single file
     """
-    shell_cmd = f"gnome-terminal -- bash -c \"jupyter notebook {notebook_file}; exec bash\""
+    shell_cmd = f"gnome-terminal -- bash -c \"module load quanty; jupyter notebook {notebook_file}; exec bash\""
     subprocess.Popen(shell_cmd, shell=True)
+
 
 def xas_notebook(files: list, simulation: dict, output_file: str):
     """

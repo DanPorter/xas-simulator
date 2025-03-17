@@ -19,14 +19,17 @@ from nexpy.gui.utils import report_error, display_message, keep_data, nxload
 from nexusformat.nexus import NeXusError, NXentry, NXdata, NXfield
 from nexpy.gui.consoleapp import _tree
 
-from .xmcd_analysis import calculate_xmcd
+# from .xmcd_analysis import calculate_xmcd
+from .beamline_data_loader import get_scan_paths
+from .spectra_analysis import get_spectra, fit_bkg_then_norm_to_jump, fit_bkg_then_norm_to_peak, calc_subtraction
 
 
-DEFAULT_DATA_PATH = '/dls/i06-1/data/2024/'
+# DEFAULT_DATA_PATH = '/dls/i06-1/data/2024/'
+DEFAULT_DATA_PATH = '/dls/science/groups/das/ExampleData/xmcd'
 DEFAULT_PATH_SPEC = 'i06-1-%d.nxs'
 EN_PATH = '/entry/instrument/fesData/pgmenergy'
-SIGAL_PATH = '/entry/instrument/fesData/C3'
-MONITOR_PATH = '/entry/instrument/fesData/C4'
+SIGAL_PATH = '/entry/instrument/fesData/C1'
+MONITOR_PATH = '/entry/instrument/fesData/C2'
 POL_PATH = '/entry/instrument/id/polarisation'
 PARAM_STRING = 'pol={polarisation}, T={T_sample:5.1f}K, B={field_sum:6.1f}T'
 
@@ -61,10 +64,10 @@ class DataLoader(NXDialog):
         self.xmcd.add('first', 339089, 'First', spinbox=True)
         self.xmcd.add('last', 339093, 'Last', spinbox=True)
         self.xmcd.add('step', 1, 'Step', spinbox=True)
-        self.xmcd.add('energy_path', EN_PATH, 'Energy')
+        # self.xmcd.add('energy_path', EN_PATH, 'Energy')
         self.xmcd.add('signal_path', SIGAL_PATH, 'Signal')
-        self.xmcd.add('monitor_path', MONITOR_PATH, 'Monitor')
-        self.xmcd.add('pol_path', POL_PATH, 'Polarisation')
+        # self.xmcd.add('monitor_path', MONITOR_PATH, 'Monitor')
+        # self.xmcd.add('pol_path', POL_PATH, 'Polarisation')
 
         # action_buttons = self.action_buttons(('Get Ei', self.get_ei))
         self.set_layout(
@@ -140,18 +143,46 @@ class DataLoader(NXDialog):
         scan_range = range(first, last + step, step)
         scan_files = [os.path.join(path, spec % scanno) for scanno in scan_range]
 
-        energy_path = self.xmcd['energy_path'].value
+        # energy_path = self.xmcd['energy_path'].value
         signal_path = self.xmcd['signal_path'].value
-        monitor_path = self.xmcd['monitor_path'].value
-        pol_path = self.xmcd['pol_path'].value
+        # monitor_path = self.xmcd['monitor_path'].value
+        # pol_path = self.xmcd['pol_path'].value
+        #
+        # av_energy, interp_pc, interp_nc, diff = calculate_xmcd(
+        #     file_list=scan_files,
+        #     energy_path=energy_path,
+        #     signal_path=signal_path,
+        #     monitor_path=monitor_path,
+        #     pol_path=pol_path
+        # )
 
-        av_energy, interp_pc, interp_nc, diff = calculate_xmcd(
-            file_list=scan_files,
+        signal_name = os.path.basename(signal_path)  # default=None, or set to e.g. 'C1'
+        energy_path, signal_path, monitor_path, pol_path = get_scan_paths(scan_files[0], signal_name)
+
+        # load data, average and normalise spectra
+        av_energy, signals, raw = get_spectra(
+            *scan_files,
             energy_path=energy_path,
             signal_path=signal_path,
-            monitor_path=monitor_path,
-            pol_path=pol_path
+            pol_path=pol_path,
+            monitor_path=monitor_path
         )
+
+        # normalise spectra and remove background (normalise high energy region to 1)
+        norm_signals = {
+            # label: fit_bkg_then_norm_to_peak(
+            label: fit_bkg_then_norm_to_jump(
+                energy=av_energy,
+                signal=signal,
+                ev_from_start=6,  # defines background region below edge, in eV from start of scan
+                ev_from_end=10  # defines high-energy region above edge, in eV from end of scan
+            )[0] for label, signal in signals.items()
+        }
+
+        # determine polarisations and calculate subtraction (XMCD or XMLD)
+        result, subtraction_type = calc_subtraction(norm_signals)
+
+
 
         # Load files for tree
         pc = NXentry(name='pc')
@@ -176,14 +207,12 @@ class DataLoader(NXDialog):
 
         # for plotting
         en = NXfield(av_energy, name='Energy_eV')
-        xas1 = NXdata(NXfield(interp_pc, name='XAS_pc'), (en,), name='XAS_pc')
-        xas2 = NXdata(NXfield(interp_nc, name='XAS_nc'), (en,), name='XAS_nc')
-        xmcd = NXdata(NXfield(diff, name='XMCD'), (en,), name='XMCD')
+        xas1 = NXdata(NXfield(signals['pc'], name='XAS_pc'), (en,), name='XAS_pc')
+        xas2 = NXdata(NXfield(signals['nc'], name='XAS_nc'), (en,), name='XAS_nc')
+        xmcd = NXdata(NXfield(result, name=subtraction_type), (en,), name=subtraction_type)
         entry = NXentry(pc, nc, xas1, xas2, xmcd, name='processed')
         xmcd.set_default()
 
-        print(xas2)
-        print(interp_nc)
         # entry.set_default()
         xas1.plot('b-', label='pc')
         xas2.oplot('g-', label='nc')
