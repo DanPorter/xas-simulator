@@ -139,7 +139,7 @@ class XASDialog(NXDialog):
         input.setH_terms()
         input.set_electrons()
         input.define_atomic_term()
-        input.define_Oh_crystal_field_term()
+        input.define_crystal_field_term()
         input.define_external_field_term()
         input.setTemperature()
         input.setRestrictions()
