@@ -5,6 +5,7 @@ from . import nexpy_nb_runner
 
 
 def plugin_menu():
+    print('Adding Plugin: XAS Simulator')
     menu = 'XAS Simulator'
     actions = []
     actions.append(('XAS setup', xas.show_dialog))
