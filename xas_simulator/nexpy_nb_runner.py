@@ -4,9 +4,6 @@ Nexpy widget for notebook runner
 
 import os
 import re
-from importlib.metadata import files
-
-import h5py
 
 from nexpy.gui.datadialogs import GridParameters, NXDialog
 from nexpy.gui.pyqt import QtWidgets
@@ -55,6 +52,7 @@ class NBRunner(NXDialog):
         self.parameters.add('qtypath', DEFAULT_QUANTY_PATH, 'Quanty path')
         self.parameters.add('ion', 'Ni', 'Ion Name')
         self.parameters.add('charge', 2, 'Charge')
+        self.parameters.add('sym', 'Oh', 'Symmetry')
         self.parameters.add('beta', 0.8, 'Beta')
         self.parameters.add('10Dq', 1.0, '10Dq')
         self.parameters.add('Bx', 0.0, 'B_x')
@@ -133,6 +131,7 @@ class NBRunner(NXDialog):
         qtypath = self.parameters['qtypath'].value
         ion = self.parameters['ion'].value
         ch = int(self.parameters['charge'].value)
+        sym = self.parameters['sym'].value
         beta = self.parameters['beta'].value
         Dq = self.parameters['10Dq'].value
         mag_field = [self.parameters['Bx'].value,
@@ -145,6 +144,7 @@ class NBRunner(NXDialog):
         simulation = {
             'ion': ion,
             'ch': ch,
+            'sym': sym,
             'beta': beta,
             'dq': Dq,
             'mag_field': mag_field,
