@@ -5,8 +5,8 @@ from xas_simulator.params_short import xray_data, parameters
 from xas_simulator.XMCD_src2 import XAS_Lua
 
 # DEFAULT_QUANTY_PATH = '/scratch/grp66007/software/xmcd_beamline_simulator/quanty_lin/Quanty'
-# DEFAULT_QUANTY_PATH = r"C:\Users\grp66007\Documents\quanty\quanty_win\QuantyWin64.exe"
-DEFAULT_QUANTY_PATH = 'Quanty'
+DEFAULT_QUANTY_PATH = r"C:\Users\grp66007\Documents\quanty\quanty_win\QuantyWin64.exe"
+# DEFAULT_QUANTY_PATH = 'Quanty'
 
 
 # Find writable directory

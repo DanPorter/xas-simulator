@@ -26,3 +26,15 @@ $ nexpy
 python -m pip uninstall xas_simulator
 python -m pip install .
 ```
+
+### Nexpy problems
+if you run Nexpy and nothing happens...
+```bash
+python -c "from nexpy.nexpygui import main; main()"
+```
+You may need to install Qt:
+```bash
+conda install PyQt
+```
+
+if Nexpy opens and the plugin are not available... good luck!

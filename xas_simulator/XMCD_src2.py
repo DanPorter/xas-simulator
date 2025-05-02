@@ -153,7 +153,7 @@ class XAS_Lua:
                 f.write("    H_i = H_i + Chop( zeta_3d_i * ldots_3d)\n")
                 f.write("    H_f = H_f + Chop( zeta_3d_f * ldots_3d + zeta_2p_f * ldots_2p)\n\n")
 
-    def define_Oh_crystal_field_term(self):
+    def define_crystal_field_term(self):
         """
         Set the crystal field part of the Hamiltonian
         """
@@ -165,13 +165,28 @@ class XAS_Lua:
             conf = '3d' + str(Nelec)
             conf_xas = '2p5,3d' + str(Nelec + 1)
 
-        tendq_i = \
-            self.xdat['elements'][self.ion]['charges'][self.charge]['configurations'][conf]['terms']['Crystal Field'][
-                'symmetries'][self.symm]['parameters']['variable']['10Dq(3d)']
-        tendq_f = \
-            self.xdat['elements'][self.ion]['charges'][self.charge]['configurations'][conf_xas]['terms'][
-                'Crystal Field'][
-                'symmetries'][self.symm]['parameters']['variable']['10Dq(3d)']
+        match self.symm:
+            case 'Oh':
+                self.define_Oh_crystal_field_term(conf, conf_xas)
+            case 'D3h':
+                self.define_D3h_crystal_field_term(conf,conf_xas)
+            case 'D4h':
+                self.define_D4h_crystal_field_term(conf, conf_xas)
+            case 'Td':
+                self.define_Td_crystal_field_term(conf,conf_xas)
+            case 'C3v':
+                self.define_C3v_crystal_field_term(conf,conf_xas)
+            case _:
+                self.define_Oh_crystal_field_term(conf,conf_xas)
+
+    def define_Oh_crystal_field_term(self, conf, conf_xas):
+        """
+        Crystal field with Oh symmetry
+        """
+        tendq_i =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+            ['configurations'][conf]['terms']['Crystal Field']['symmetries']['Oh']['parameters']['variable']['10Dq(3d)']
+        tendq_f =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+            ['configurations'][conf_xas]['terms']['Crystal Field']['symmetries']['Oh']['parameters']['variable']['10Dq(3d)']
 
         with open(self.filename, 'a') as f:
             f.write(70 * '-' + '\n-- Define the crystal field term.\n' + 70 * '-' + '\n')
@@ -183,6 +198,141 @@ class XAS_Lua:
 
                 f.write("H_i = H_i + Chop(tenDq_3d_i * tenDq_3d)\n")
                 f.write("H_f = H_f + Chop(tenDq_3d_f * tenDq_3d)\n\n")
+
+    def define_D3h_crystal_field_term(self, conf, conf_xas):
+        """
+        Crystal field with D3h symmetry
+        """
+        Dmu_i =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+            ['configurations'][conf]['terms']['Crystal Field']['symmetries']['D3h']['parameters']['variable']['Dμ(3d)']
+        Dmu_f =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+            ['configurations'][conf_xas]['terms']['Crystal Field']['symmetries']['D3h']['parameters']['variable']['Dμ(3d)']
+
+        Dnu_i =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+            ['configurations'][conf]['terms']['Crystal Field']['symmetries']['D3h']['parameters']['variable']['Dν(3d)']
+        Dnu_f =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+            ['configurations'][conf_xas]['terms']['Crystal Field']['symmetries']['D3h']['parameters']['variable']['Dν(3d)']
+
+        with open(self.filename, 'a') as f:
+            f.write(70 * '-' + '\n-- Define the crystal field term.\n' + 70 * '-' + '\n')
+            if self.params.get('H_crystal_field', 1) == 1:
+                f.write('Akm = {{2, 0, -7}}\n')
+                f.write("Dmu_3d = NewOperator('CF', NFermions, IndexUp_3d, IndexDn_3d, Akm)\n")
+                f.write('Akm = {{4, 0, -21}}\n')
+                f.write("Dnu_3d = NewOperator('CF', NFermions, IndexUp_3d, IndexDn_3d, Akm)\n")
+                f.write(f"Dmu_3d_i = {Dmu_i} \n")
+                f.write(f"Dmu_3d_f = {Dmu_f} \n")
+                f.write(f"Dnu_3d_i = {Dnu_i} \n")
+                f.write(f"Dnu_3d_f = {Dnu_f} \n")
+
+                f.write("H_i = H_i + Chop(Dmu_3d_i * Dmu_3d + Dnu_3d_i * Dnu_3d)\n")
+                f.write("H_f = H_f + Chop(Dmu_3d_f * Dmu_3d + Dnu_3d_f * Dnu_3d)\n\n")
+        
+
+        
+    def define_D4h_crystal_field_term(self, conf, conf_xas):
+        """
+        Crystal field with D4h symmetry
+        'Dq(3d)', 'Ds(3d)', 'Dt(3d)'
+        """
+        Dq_i =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+            ['configurations'][conf]['terms']['Crystal Field']['symmetries']['D4h']['parameters']['variable']['Dq(3d)']
+        Dq_f =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+            ['configurations'][conf_xas]['terms']['Crystal Field']['symmetries']['D4h']['parameters']['variable']['Dq(3d)']
+
+        Ds_i =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+            ['configurations'][conf]['terms']['Crystal Field']['symmetries']['D4h']['parameters']['variable']['Ds(3d)']
+        Ds_f =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+            ['configurations'][conf_xas]['terms']['Crystal Field']['symmetries']['D4h']['parameters']['variable']['Ds(3d)']
+
+        Dt_i =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+            ['configurations'][conf]['terms']['Crystal Field']['symmetries']['D4h']['parameters']['variable']['Dt(3d)']
+        Dt_f =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+            ['configurations'][conf_xas]['terms']['Crystal Field']['symmetries']['D4h']['parameters']['variable']['Dt(3d)']
+
+        with open(self.filename, 'a') as f:
+            f.write(70 * '-' + '\n-- Define the crystal field term.\n' + 70 * '-' + '\n')
+            if self.params.get('H_crystal_field', 1) == 1:
+                f.write('Akm = {{4, 0, 21}, {4, -4, 1.5 * sqrt(70)}, {4, 4, 1.5 * sqrt(70)}}\n')
+                f.write("Dq_3d = NewOperator('CF', NFermions, IndexUp_3d, IndexDn_3d, Akm)\n")
+                f.write('Akm = {{2, 0, -7}}\n')
+                f.write("Ds_3d = NewOperator('CF', NFermions, IndexUp_3d, IndexDn_3d, Akm)\n")
+                f.write('Akm = {{4, 0, -21}}\n')
+                f.write("Dt_3d = NewOperator('CF', NFermions, IndexUp_3d, IndexDn_3d, Akm)\n")
+                
+                f.write(f"Dq_3d_i = {Dq_i} \n")
+                f.write(f"Dq_3d_f = {Dq_f} \n")
+                f.write(f"Ds_3d_i = {Ds_i} \n")
+                f.write(f"Ds_3d_f = {Ds_f} \n")
+                f.write(f"Dt_3d_i = {Dt_i} \n")
+                f.write(f"Dt_3d_f = {Dt_f} \n")
+
+                f.write("H_i = H_i + Chop(Dq_3d_i * Dq_3d + Ds_3d_i * Ds_3d + Dt_3d_i * Dt_3d)\n")
+                f.write("H_f = H_f + Chop(Dq_3d_f * Dq_3d + Ds_3d_f * Ds_3d + Dt_3d_f * Dt_3d)\n")
+
+        
+
+    def define_Td_crystal_field_term(self, conf, conf_xas):
+        """
+        Crystal field with Td symmetry
+        """
+        tendq_i =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+            ['configurations'][conf]['terms']['Crystal Field']['symmetries']['Td']['parameters']['variable']['10Dq(3d)']
+        tendq_f =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+            ['configurations'][conf_xas]['terms']['Crystal Field']['symmetries']['Td']['parameters']['variable']['10Dq(3d)']
+
+        with open(self.filename, 'a') as f:
+            f.write(70 * '-' + '\n-- Define the crystal field term.\n' + 70 * '-' + '\n')
+            if self.params.get('H_crystal_field', 1) == 1:
+                f.write('Akm = {{4, 0, -2.1}, {4, -4, -1.5 * sqrt(0.7)}, {4, 4, -1.5 * sqrt(0.7)}}\n')
+                f.write("tenDq_3d = NewOperator('CF', NFermions, IndexUp_3d, IndexDn_3d, Akm)\n")
+                f.write(f"tenDq_3d_i = {tendq_i} \n")
+                f.write(f"tenDq_3d_f = {tendq_f} \n")
+
+                f.write("H_i = H_i + Chop(tenDq_3d_i * tenDq_3d)\n")
+                f.write("H_f = H_f + Chop(tenDq_3d_f * tenDq_3d)\n\n")
+
+    def define_C3v_crystal_field_term(self, conf, conf_xas):
+        """
+        Crystal field with C3v symmetry
+        'Dq(3d)', 'Dσ(3d)', 'Dτ(3d)'
+        """
+        Dq_i =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+            ['configurations'][conf]['terms']['Crystal Field']['symmetries']['C3v']['parameters']['variable']['Dq(3d)']
+        Dq_f =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+            ['configurations'][conf_xas]['terms']['Crystal Field']['symmetries']['C3v']['parameters']['variable']['Dq(3d)']
+
+        Dsigma_i =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+            ['configurations'][conf]['terms']['Crystal Field']['symmetries']['C3v']['parameters']['variable']['Dσ(3d)']
+        Dsigma_f =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+            ['configurations'][conf_xas]['terms']['Crystal Field']['symmetries']['C3v']['parameters']['variable']['Dσ(3d)']
+
+        Dtau_i =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+            ['configurations'][conf]['terms']['Crystal Field']['symmetries']['C3v']['parameters']['variable']['Dτ(3d)']
+        Dtau_f =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+            ['configurations'][conf_xas]['terms']['Crystal Field']['symmetries']['C3v']['parameters']['variable']['Dτ(3d)']
+
+        with open(self.filename, 'a') as f:
+            f.write(70 * '-' + '\n-- Define the crystal field term.\n' + 70 * '-' + '\n')
+            if self.params.get('H_crystal_field', 1) == 1:
+                f.write('Akm = {{4, 0, -14}, {4, 3, -2 * math.sqrt(70)}, {4, -3, 2 * math.sqrt(70)}}\n')
+                f.write("Dq_3d = NewOperator('CF', NFermions, IndexUp_3d, IndexDn_3d, Akm)\n")
+                f.write('Akm = {{2, 0, -7}}\n')
+                f.write("Dsigma_3d = NewOperator('CF', NFermions, IndexUp_3d, IndexDn_3d, Akm)\n")
+                f.write('Akm = {{4, 0, -21}}\n')
+                f.write("Dtau_3d = NewOperator('CF', NFermions, IndexUp_3d, IndexDn_3d, Akm)\n")
+                
+                f.write(f"Dq_3d_i = {Dq_i} \n")
+                f.write(f"Dq_3d_f = {Dq_f} \n")
+                f.write(f"Dsigma_3d_i = {Dsigma_i} \n")
+                f.write(f"Dsigma_3d_f = {Dsigma_f} \n")
+                f.write(f"Dtau_3d_i = {Dtau_i} \n")
+                f.write(f"Dtau_3d_f = {Dtau_f} \n")
+
+                f.write("H_i = H_i + Chop(Dq_3d_i * Dq_3d + Dsigma_3d_i * Dsigma_3d + Dtau_3d_i * Dtau_3d)\n")
+                f.write("H_f = H_f + Chop(Dq_3d_f * Dq_3d + Dsigma_3d_f * Dsigma_3d + Dtau_3d_f * Dtau_3d)\n")
+
+
 
     def define_external_field_term(self):
         """
@@ -916,7 +1066,7 @@ class XAS_Lua:
         self.setH_terms()
         self.set_electrons()
         self.define_atomic_term()
-        self.define_Oh_crystal_field_term()
+        self.define_crystal_field_term()
         self.define_external_field_term()
         self.setTemperature()
         self.setRestrictions()

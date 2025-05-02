@@ -32,6 +32,7 @@ class XASDialog(NXDialog):
         self.parameters.add('Qtypath', DEFAULT_QUANTY_PATH, 'Quanty path')
         self.parameters.add('ion', 'Ni', 'Ion Name')
         self.parameters.add('charge', 2, 'Charge')
+        self.parameters.add('sym', 'Oh', 'Symmetry')
         self.parameters.add('beta', 0.8, 'Beta')
         self.parameters.add('10Dq', 1.0, '10Dq')
         self.parameters.add('Bx', 0.0, 'B_x')
@@ -77,6 +78,7 @@ class XASDialog(NXDialog):
         ion = self.parameters['ion'].value
 
         ch = int(self.parameters['charge'].value)
+        sym = self.parameters['sym'].value
         label = ion + '_XAS'
         beta = self.parameters['beta'].value
         Dq = self.parameters['10Dq'].value
@@ -125,21 +127,28 @@ class XASDialog(NXDialog):
             display_message('XAS Setup', message)
             return
 
+        # Check sym
+        if sym not in xray_data['elements'][ion]['charges'][ch_str]['symmetries']:
+            message = f"Symmetry: '{sym}' is not available for {ion}{ch_str}.\nAvailable symmetries for {ion}{ch_str} are:\n"
+            message += ','.join(xray_data['elements'][ion]['charges'][ch_str]['symmetries'].keys())
+            display_message('XAS Setup', message)
+            return
+
         input = XAS_Lua(
             ion=ion,
-            symm='Oh',
+            symm=sym,
             charge=ch_str,
             params=params2,
             params_json=xray_data,
             output_path=TMPDIR,
-            quanty_path=DEFAULT_QUANTY_PATH,
+            quanty_path=qtypath,
         )
         input.write_header()
         input.H_init()
         input.setH_terms()
         input.set_electrons()
         input.define_atomic_term()
-        input.define_Oh_crystal_field_term()
+        input.define_crystal_field_term()
         input.define_external_field_term()
         input.setTemperature()
         input.setRestrictions()
