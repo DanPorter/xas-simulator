@@ -183,10 +183,26 @@ class XAS_Lua:
         """
         Crystal field with Oh symmetry
         """
-        tendq_i =  self.xdat['elements'][self.ion]['charges'][self.charge]\
-            ['configurations'][conf]['terms']['Crystal Field']['symmetries']['Oh']['parameters']['variable']['10Dq(3d)']
-        tendq_f =  self.xdat['elements'][self.ion]['charges'][self.charge]\
-            ['configurations'][conf_xas]['terms']['Crystal Field']['symmetries']['Oh']['parameters']['variable']['10Dq(3d)']
+        # Attempt 1: Check for separate initial and final values
+        tendq_i = self.params.get('10Dq_i')
+        tendq_f = self.params.get('10Dq_f')
+
+        if tendq_i is None or tendq_f is None:
+            # Attempt 2: Check for a single 10Dq value
+            single_tendq = self.params.get('10Dq')
+            if single_tendq is not None:
+                tendq_i = single_tendq
+                tendq_f = single_tendq
+            else:
+                # Attempt 3: Fallback to the deeply nested structure
+                try:
+                    tendq_i = self.xdat['elements'][self.ion]['charges'][self.charge]\
+                        ['configurations'][conf]['terms']['Crystal Field']['symmetries']['Oh']['parameters']['variable']['10Dq(3d)']
+                    tendq_f = self.xdat['elements'][self.ion]['charges'][self.charge]\
+                        ['configurations'][conf_xas]['terms']['Crystal Field']['symmetries']['Oh']['parameters']['variable']['10Dq(3d)']
+                except KeyError:
+                    print("Error: 10Dq parameter not found in any of the expected locations.")
+
 
         with open(self.filename, 'a') as f:
             f.write(70 * '-' + '\n-- Define the crystal field term.\n' + 70 * '-' + '\n')
@@ -203,15 +219,44 @@ class XAS_Lua:
         """
         Crystal field with D3h symmetry
         """
-        Dmu_i =  self.xdat['elements'][self.ion]['charges'][self.charge]\
-            ['configurations'][conf]['terms']['Crystal Field']['symmetries']['D3h']['parameters']['variable']['Dμ(3d)']
-        Dmu_f =  self.xdat['elements'][self.ion]['charges'][self.charge]\
-            ['configurations'][conf_xas]['terms']['Crystal Field']['symmetries']['D3h']['parameters']['variable']['Dμ(3d)']
+        # Attempt 1: Check for separate initial and final values
+        Dmu_i = self.params.get('Dmu_i')
+        Dmu_f = self.params.get('Dmu_f')
 
-        Dnu_i =  self.xdat['elements'][self.ion]['charges'][self.charge]\
-            ['configurations'][conf]['terms']['Crystal Field']['symmetries']['D3h']['parameters']['variable']['Dν(3d)']
-        Dnu_f =  self.xdat['elements'][self.ion]['charges'][self.charge]\
-            ['configurations'][conf_xas]['terms']['Crystal Field']['symmetries']['D3h']['parameters']['variable']['Dν(3d)']
+        if Dmu_i is None or Dmu_f is None:
+            # Attempt 2: Check for a single Dmu value
+            single_Dmu = self.params.get('Dmu')
+            if single_Dmu is not None:
+                Dmu_i = single_Dmu
+                Dmu_f = single_Dmu
+            else:
+                # Attempt 3: Fallback to the json data
+                try:
+                    Dmu_i =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+                        ['configurations'][conf]['terms']['Crystal Field']['symmetries']['D3h']['parameters']['variable']['Dμ(3d)']
+                    Dmu_f =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+                        ['configurations'][conf_xas]['terms']['Crystal Field']['symmetries']['D3h']['parameters']['variable']['Dμ(3d)']
+                except KeyError:
+                    print("Error: Dmu parameter not found in any of the expected locations.")
+
+        Dnu_i = self.params.get('Dnu_i')
+        Dnu_f = self.params.get('Dnu_f')
+
+        if Dnu_i is None or Dnu_f is None:
+            # Attempt 2: Check for a single Dnu value
+            single_Dnu = self.params.get('Dnu')
+            if single_Dnu is not None:
+                Dnu_i = single_Dnu
+                Dnu_f = single_Dnu
+            else:
+                # Attempt 3: Fallback to the json data
+                try:
+                    Dnu_i =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+                        ['configurations'][conf]['terms']['Crystal Field']['symmetries']['D3h']['parameters']['variable']['Dν(3d)']
+                    Dnu_f =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+                        ['configurations'][conf_xas]['terms']['Crystal Field']['symmetries']['D3h']['parameters']['variable']['Dν(3d)']
+                except KeyError:
+                    print("Error: Dnu parameter not found in any of the expected locations.")
 
         with open(self.filename, 'a') as f:
             f.write(70 * '-' + '\n-- Define the crystal field term.\n' + 70 * '-' + '\n')
@@ -235,20 +280,68 @@ class XAS_Lua:
         Crystal field with D4h symmetry
         'Dq(3d)', 'Ds(3d)', 'Dt(3d)'
         """
-        Dq_i =  self.xdat['elements'][self.ion]['charges'][self.charge]\
-            ['configurations'][conf]['terms']['Crystal Field']['symmetries']['D4h']['parameters']['variable']['Dq(3d)']
-        Dq_f =  self.xdat['elements'][self.ion]['charges'][self.charge]\
-            ['configurations'][conf_xas]['terms']['Crystal Field']['symmetries']['D4h']['parameters']['variable']['Dq(3d)']
+       # Attempt 1: Check for separate initial and final values
+        Dq_i = self.params.get('Dq_i')
+        Dq_f = self.params.get('Dq_f')
 
-        Ds_i =  self.xdat['elements'][self.ion]['charges'][self.charge]\
-            ['configurations'][conf]['terms']['Crystal Field']['symmetries']['D4h']['parameters']['variable']['Ds(3d)']
-        Ds_f =  self.xdat['elements'][self.ion]['charges'][self.charge]\
-            ['configurations'][conf_xas]['terms']['Crystal Field']['symmetries']['D4h']['parameters']['variable']['Ds(3d)']
+        if Dq_i is None or Dq_f is None:
+            # Attempt 2: Check for a single Dq value
+            single_Dq = self.params.get('Dq')
+            if single_Dq is not None:
+                Dq_i = single_Dq
+                Dq_f = single_Dq
+            else:
+                # Attempt 3: Fallback to the json data
+                try:
+                    Dq_i =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+                        ['configurations'][conf]['terms']['Crystal Field']['symmetries']['D4h']['parameters']['variable']['Dq(3d)']
+                    Dq_f =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+                        ['configurations'][conf_xas]['terms']['Crystal Field']['symmetries']['D4h']['parameters']['variable']['Dq(3d)']
 
-        Dt_i =  self.xdat['elements'][self.ion]['charges'][self.charge]\
-            ['configurations'][conf]['terms']['Crystal Field']['symmetries']['D4h']['parameters']['variable']['Dt(3d)']
-        Dt_f =  self.xdat['elements'][self.ion]['charges'][self.charge]\
-            ['configurations'][conf_xas]['terms']['Crystal Field']['symmetries']['D4h']['parameters']['variable']['Dt(3d)']
+                except KeyError:
+                    print("Error: Dq parameter not found in any of the expected locations.")
+
+       # Attempt 1: Check for separate initial and final values
+        Ds_i = self.params.get('Ds_i')
+        Ds_f = self.params.get('Ds_f')
+
+        if Ds_i is None or Ds_f is None:
+            # Attempt 2: Check for a single Ds value
+            single_Ds = self.params.get('Ds')
+            if single_Ds is not None:
+                Ds_i = single_Ds
+                Ds_f = single_Ds
+            else:
+                # Attempt 3: Fallback to the json data
+                try:
+                    Ds_i =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+                        ['configurations'][conf]['terms']['Crystal Field']['symmetries']['D4h']['parameters']['variable']['Ds(3d)']
+                    Ds_f =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+                        ['configurations'][conf_xas]['terms']['Crystal Field']['symmetries']['D4h']['parameters']['variable']['Ds(3d)']
+                except KeyError:
+                    print("Error: Ds parameter not found in any of the expected locations.")
+
+       # Attempt 1: Check for separate initial and final values
+        Dt_i = self.params.get('Dt_i')
+        Dt_f = self.params.get('Dt_f')
+
+        if Dt_i is None or Dt_f is None:
+            # Attempt 2: Check for a single Dt value
+            single_Dt = self.params.get('Dt')
+            if single_Dt is not None:
+                Dt_i = single_Dt
+                Dt_f = single_Dt
+            else:
+                # Attempt 3: Fallback to the json data
+                try:
+                    Dt_i =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+                        ['configurations'][conf]['terms']['Crystal Field']['symmetries']['D4h']['parameters']['variable']['Dt(3d)']
+                    Dt_f =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+                        ['configurations'][conf_xas]['terms']['Crystal Field']['symmetries']['D4h']['parameters']['variable']['Dt(3d)']
+                except KeyError:
+                    print("Error: Dt parameter not found in any of the expected locations.")                    
+                    
+
 
         with open(self.filename, 'a') as f:
             f.write(70 * '-' + '\n-- Define the crystal field term.\n' + 70 * '-' + '\n')
@@ -276,10 +369,26 @@ class XAS_Lua:
         """
         Crystal field with Td symmetry
         """
-        tendq_i =  self.xdat['elements'][self.ion]['charges'][self.charge]\
-            ['configurations'][conf]['terms']['Crystal Field']['symmetries']['Td']['parameters']['variable']['10Dq(3d)']
-        tendq_f =  self.xdat['elements'][self.ion]['charges'][self.charge]\
-            ['configurations'][conf_xas]['terms']['Crystal Field']['symmetries']['Td']['parameters']['variable']['10Dq(3d)']
+
+        # Attempt 1: Check for separate initial and final values
+        tendq_i = self.params.get('Dq_i')
+        tendq_f = self.params.get('Dq_f')
+
+        if tendq_i is None or tendq_f is None:
+            # Attempt 2: Check for a single 10Dq value
+            single_tendq = self.params.get('Dq')
+            if single_tendq is not None:
+                tendq_i = single_tendq
+                tendq_f = single_tendq
+            else:
+                # Attempt 3: Fallback to the deeply nested structure
+                try:
+                    tendq_i = self.xdat['elements'][self.ion]['charges'][self.charge]\
+                        ['configurations'][conf]['terms']['Crystal Field']['symmetries']['Td']['parameters']['variable']['10Dq(3d)']
+                    tendq_f = self.xdat['elements'][self.ion]['charges'][self.charge]\
+                        ['configurations'][conf_xas]['terms']['Crystal Field']['symmetries']['Td']['parameters']['variable']['10Dq(3d)']
+                except KeyError:
+                    print("Error: 10Dq parameter not found in any of the expected locations.")
 
         with open(self.filename, 'a') as f:
             f.write(70 * '-' + '\n-- Define the crystal field term.\n' + 70 * '-' + '\n')
@@ -297,20 +406,66 @@ class XAS_Lua:
         Crystal field with C3v symmetry
         'Dq(3d)', 'Dσ(3d)', 'Dτ(3d)'
         """
-        Dq_i =  self.xdat['elements'][self.ion]['charges'][self.charge]\
-            ['configurations'][conf]['terms']['Crystal Field']['symmetries']['C3v']['parameters']['variable']['Dq(3d)']
-        Dq_f =  self.xdat['elements'][self.ion]['charges'][self.charge]\
-            ['configurations'][conf_xas]['terms']['Crystal Field']['symmetries']['C3v']['parameters']['variable']['Dq(3d)']
+       # Attempt 1: Check for separate initial and final values
+        Dq_i = self.params.get('Dq_i')
+        Dq_f = self.params.get('Dq_f')
 
-        Dsigma_i =  self.xdat['elements'][self.ion]['charges'][self.charge]\
-            ['configurations'][conf]['terms']['Crystal Field']['symmetries']['C3v']['parameters']['variable']['Dσ(3d)']
-        Dsigma_f =  self.xdat['elements'][self.ion]['charges'][self.charge]\
-            ['configurations'][conf_xas]['terms']['Crystal Field']['symmetries']['C3v']['parameters']['variable']['Dσ(3d)']
+        if Dq_i is None or Dq_f is None:
+            # Attempt 2: Check for a single Dq value
+            single_Dq = self.params.get('Dq')
+            if single_Dq is not None:
+                Dq_i = single_Dq
+                Dq_f = single_Dq
+            else:
+                # Attempt 3: Fallback to the json data
+                try:
+                    Dq_i =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+                        ['configurations'][conf]['terms']['Crystal Field']['symmetries']['C3v']['parameters']['variable']['Dq(3d)']
+                    Dq_f =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+                        ['configurations'][conf_xas]['terms']['Crystal Field']['symmetries']['C3v']['parameters']['variable']['Dq(3d)']
+                except KeyError:
+                    print("Error: Dq parameter not found in any of the expected locations.")
 
-        Dtau_i =  self.xdat['elements'][self.ion]['charges'][self.charge]\
-            ['configurations'][conf]['terms']['Crystal Field']['symmetries']['C3v']['parameters']['variable']['Dτ(3d)']
-        Dtau_f =  self.xdat['elements'][self.ion]['charges'][self.charge]\
-            ['configurations'][conf_xas]['terms']['Crystal Field']['symmetries']['C3v']['parameters']['variable']['Dτ(3d)']
+
+       # Attempt 1: Check for separate initial and final values
+        Dsigma_i = self.params.get('Dsigma_i')
+        Dsigma_f = self.params.get('Dsigma_f')
+
+        if Dsigma_i is None or Dsigma_f is None:
+            # Attempt 2: Check for a single Dsigma value
+            single_Dsigma = self.params.get('Dsigma')
+            if single_Dsigma is not None:
+                Dsigma_i = single_Dsigma
+                Dsigma_f = single_Dsigma
+            else:
+                # Attempt 3: Fallback to the json data
+                try:
+                    Dsigma_i =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+                        ['configurations'][conf]['terms']['Crystal Field']['symmetries']['C3v']['parameters']['variable']['Dσ(3d)']
+                    Dsigma_f =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+                        ['configurations'][conf_xas]['terms']['Crystal Field']['symmetries']['C3v']['parameters']['variable']['Dσ(3d)']
+                except KeyError:
+                    print("Error: Dsigma parameter not found in any of the expected locations.")
+                    
+       # Attempt 1: Check for separate initial and final values
+        Dtau_i = self.params.get('Dtau_i')
+        Dtau_f = self.params.get('Dtau_f')
+
+        if Dtau_i is None or Dtau_f is None:
+            # Attempt 2: Check for a single Dtau value
+            single_Dtau = self.params.get('Dtau')
+            if single_Dtau is not None:
+                Dtau_i = single_Dtau
+                Dtau_f = single_Dtau
+            else:
+                # Attempt 3: Fallback to the json data
+                try:
+                    Dtau_i =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+                        ['configurations'][conf]['terms']['Crystal Field']['symmetries']['C3v']['parameters']['variable']['Dτ(3d)']
+                    Dtau_f =  self.xdat['elements'][self.ion]['charges'][self.charge]\
+                        ['configurations'][conf_xas]['terms']['Crystal Field']['symmetries']['C3v']['parameters']['variable']['Dτ(3d)']
+                except KeyError:
+                    print("Error: Dtau parameter not found in any of the expected locations.")
 
         with open(self.filename, 'a') as f:
             f.write(70 * '-' + '\n-- Define the crystal field term.\n' + 70 * '-' + '\n')
