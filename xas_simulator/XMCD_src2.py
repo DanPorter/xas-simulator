@@ -36,6 +36,7 @@ class XAS_Lua:
             }
         self.result = None
         self.outdic = None
+        
 
     def write_header(self):
         """Write a header to the Lua file."""
@@ -50,15 +51,23 @@ class XAS_Lua:
             f.write('H_f = 0\n\n')
 
     def setH_terms(self):
+        
         """Toggle the Hamiltonian terms based on provided parameters."""
         with open(self.filename, 'a') as f:
             f.write(70 * '-' + '\n-- Toggle the Hamiltonian terms.\n' + 70 * '-' + '\n')
 
-            # Replace placeholders with actual values from the self.params dictionary
+            # Get values from the self.params dictionary; if not present, then, it's 0
+            tog = ["H_atomic", "H_crystal_field", "H_3d_ligands_hybridization_lmct",
+                   "H_3d_ligands_hybridization_mlct", "H_magnetic_field", "H_exchange_field"]
+            for toggle in tog:
+                dummy = self.params[toggle]
+                if dummy is None:
+                    self.params.update({toggle:'0'})
+                    
             f.write(f'H_atomic = {self.params["H_atomic"]}\n')
             f.write(f'H_crystal_field = {self.params["H_crystal_field"]}\n')
-            # f.write(f'H_3d_ligands_hybridization_lmct = {self.params["H_3d_ligands_hybridization_lmct"]}\n')
-            # f.write(f'H_3d_ligands_hybridization_mlct = {self.params["H_3d_ligands_hybridization_mlct"]}\n')
+            f.write(f'H_3d_ligands_hybridization_lmct = {self.params["H_3d_ligands_hybridization_lmct"]}\n')
+            f.write(f'H_3d_ligands_hybridization_mlct = {self.params["H_3d_ligands_hybridization_mlct"]}\n')
             f.write(f'H_magnetic_field = {self.params["H_magnetic_field"]}\n')
             f.write(f'H_exchange_field = {self.params["H_exchange_field"]}\n\n')
 
@@ -75,6 +84,18 @@ class XAS_Lua:
             f.write('IndexUp_2p = {1, 3, 5}\n')
             f.write('IndexDn_3d = {6, 8, 10, 12, 14}\n')
             f.write('IndexUp_3d = {7, 9, 11, 13, 15}\n\n')
+
+            if (self.params["H_3d_ligands_hybridization_lmct"]):
+                f.write('NFermions = 26 \n')
+                f.write('NElectrons_L1 = 10 \n')
+                f.write('IndexDn_L1 = {16, 18, 20, 22, 24} \n')
+                f.write('IndexUp_L1 = {17, 19, 21, 23, 25} \n')
+            if(self.params["H_3d_ligands_hybridization_mlct"]):
+                f.write('NFermions = 26 \n')
+                f.write('NElectrons_L2 = 0 \n')
+                f.write('IndexDn_L2 = {16, 18, 20, 22, 24} \n')
+                f.write('IndexUp_L2 = {17, 19, 21, 23, 25} \n')
+            
 
     def define_atomic_term(self):
         """
@@ -104,9 +125,11 @@ class XAS_Lua:
 
             # Define number operators for 2p and 3d orbitals
             f.write(
-                "N_2p = NewOperator('Number', NFermions, IndexUp_2p, IndexUp_2p, {1, 1, 1})\n     + NewOperator('Number', NFermions, IndexDn_2p, IndexDn_2p, {1, 1, 1})\n")
+                "N_2p = NewOperator('Number', NFermions, IndexUp_2p, IndexUp_2p, {1, 1, 1})\n" +
+                "+ NewOperator('Number', NFermions, IndexDn_2p, IndexDn_2p, {1, 1, 1})\n")
             f.write(
-                "N_3d = NewOperator('Number', NFermions, IndexUp_3d, IndexUp_3d, {1, 1, 1, 1, 1})\n     + NewOperator('Number', NFermions, IndexDn_3d, IndexDn_3d, {1, 1, 1, 1, 1})\n")
+                "N_3d = NewOperator('Number', NFermions, IndexUp_3d, IndexUp_3d, {1, 1, 1, 1, 1})\n"+
+                "+  NewOperator('Number', NFermions, IndexDn_3d, IndexDn_3d, {1, 1, 1, 1, 1})\n")
 
             # Check condition for H_atomic
             if self.params.get('H_atomic', 1) == 1:
@@ -141,7 +164,8 @@ class XAS_Lua:
                 f.write(
                     "    H_i = H_i + Chop( F0_3d_3d_i * F0_3d_3d + F2_3d_3d_i * F2_3d_3d + F4_3d_3d_i * F4_3d_3d)\n")
                 f.write(
-                    "    H_f = H_f + Chop( F0_3d_3d_f * F0_3d_3d + F2_3d_3d_f * F2_3d_3d + F4_3d_3d_f * F4_3d_3d + F0_2p_3d_f * F0_2p_3d + F2_2p_3d_f * F2_2p_3d + G1_2p_3d_f * G1_2p_3d + G3_2p_3d_f * G3_2p_3d)\n")
+                    "    H_f = H_f + Chop( F0_3d_3d_f * F0_3d_3d + F2_3d_3d_f * F2_3d_3d + F4_3d_3d_f * F4_3d_3d "+
+                    " + F0_2p_3d_f * F0_2p_3d + F2_2p_3d_f * F2_2p_3d + G1_2p_3d_f * G1_2p_3d + G3_2p_3d_f * G3_2p_3d)\n")
 
                 f.write("    ldots_3d = NewOperator('ldots', NFermions, IndexUp_3d, IndexDn_3d)\n")
                 f.write("    ldots_2p = NewOperator('ldots', NFermions, IndexUp_2p, IndexDn_2p)\n")
@@ -153,6 +177,9 @@ class XAS_Lua:
                 f.write("    H_i = H_i + Chop( zeta_3d_i * ldots_3d)\n")
                 f.write("    H_f = H_f + Chop( zeta_3d_f * ldots_3d + zeta_2p_f * ldots_2p)\n\n")
 
+
+
+        
     def define_crystal_field_term(self):
         """
         Set the crystal field part of the Hamiltonian
@@ -203,7 +230,7 @@ class XAS_Lua:
                 except KeyError:
                     print("Error: 10Dq parameter not found in any of the expected locations.")
 
-
+                    
         with open(self.filename, 'a') as f:
             f.write(70 * '-' + '\n-- Define the crystal field term.\n' + 70 * '-' + '\n')
             if self.params.get('H_crystal_field', 1) == 1:
@@ -214,6 +241,157 @@ class XAS_Lua:
 
                 f.write("H_i = H_i + Chop(tenDq_3d_i * tenDq_3d)\n")
                 f.write("H_f = H_f + Chop(tenDq_3d_f * tenDq_3d)\n\n")
+        if (self.params["H_3d_ligands_hybridization_lmct"]):
+            self.define_Oh_crystal_field_lmct(conf, conf_xas)
+        if (self.params["H_3d_ligands_hybridization_mlct"]):
+            self.define_Oh_crystal_field_mlct(conf, conf_xas)
+
+
+    def define_Oh_crystal_field_lmct(self, conf, conf_xas):
+        """
+        Ligand field for Oh symmetry
+        Delta_3d_L1
+        U_3d_3d
+        E_L1
+        tenDq_L1
+        Veg_3d_L1
+        Vt2g_3d_L1
+        """
+        terms = ['Delta_L1',  'tenDq_L1', 'Veg_L1', 'Vt2g_L1']
+
+        for it in terms:
+            dummy_i = self.params.get(it+'_i')
+            dummy_f = self.params.get(it+'_f')
+            
+            if dummy_i is None or dummy_f is None:
+                dummy = self.params.get(it)
+                if dummy is None:
+                    self.params.update({it:'0'})
+                else:
+                    self.params.update({it+'_i':dummy})
+                    self.params.update({it+'_f':dummy})
+
+
+        with open(self.filename, 'a') as f:
+            f.write('    N_L1 = NewOperator("Number", NFermions, IndexUp_L1, IndexUp_L1, {1, 1, 1, 1, 1})\n')
+            f.write('         + NewOperator("Number", NFermions, IndexDn_L1, IndexDn_L1, {1, 1, 1, 1, 1})\n')
+            f.write('\n')
+            f.write(f'    Delta_3d_L1_i = {self.params["Delta_L1_i"]}\n')
+            f.write('    E_3d_i = (10 * Delta_3d_L1_i - NElectrons_3d * (19 + NElectrons_3d) * U_3d_3d_i / 2) / (10 + NElectrons_3d)\n')
+            f.write('    E_L1_i = NElectrons_3d * ((1 + NElectrons_3d) * U_3d_3d_i / 2 - Delta_3d_L1_i) / (10 + NElectrons_3d)\n')
+            f.write('\n')
+            f.write(f'    Delta_3d_L1_f = {self.params["Delta_L1_f"]} \n')
+            f.write('    E_3d_f = (10 * Delta_3d_L1_f - NElectrons_3d * (31 + NElectrons_3d) * U_3d_3d_f / 2 - 90 * U_2p_3d_f) / (16 + NElectrons_3d)\n')
+            f.write('    E_2p_f = (10 * Delta_3d_L1_f + (1 + NElectrons_3d) * (NElectrons_3d * U_3d_3d_f / 2 - (10 + NElectrons_3d) * U_2p_3d_f)) / (16 + NElectrons_3d)\n')
+            f.write('    E_L1_f = ((1 + NElectrons_3d) * (NElectrons_3d * U_3d_3d_f / 2 + 6 * U_2p_3d_f) - (6 + NElectrons_3d) * Delta_3d_L1_f) / (16 + NElectrons_3d)\n')
+            f.write('\n')
+            f.write('    H_i = H_i + Chop(\n')
+            f.write('          E_3d_i * N_3d\n')
+            f.write('        + E_L1_i * N_L1)\n')
+            f.write('\n')
+            f.write('    H_f = H_f + Chop(\n')
+            f.write('          E_3d_f * N_3d\n')
+            f.write('        + E_2p_f * N_2p\n')
+            f.write('        + E_L1_f * N_L1)\n')
+            f.write('\n')
+            f.write('    tenDq_L1 = NewOperator("CF", NFermions, IndexUp_L1, IndexDn_L1, PotentialExpandedOnClm("Oh", 2, {0.6, -0.4}))\n')
+            f.write('\n')
+            f.write('    Veg_3d_L1 = NewOperator("CF", NFermions, IndexUp_L1, IndexDn_L1, IndexUp_3d, IndexDn_3d, PotentialExpandedOnClm("Oh", 2, {1, 0}))\n')
+            f.write('              + NewOperator("CF", NFermions, IndexUp_3d, IndexDn_3d, IndexUp_L1, IndexDn_L1, PotentialExpandedOnClm("Oh", 2, {1, 0}))\n')
+            f.write('\n')
+            f.write('    Vt2g_3d_L1 = NewOperator("CF", NFermions, IndexUp_L1, IndexDn_L1, IndexUp_3d, IndexDn_3d, PotentialExpandedOnClm("Oh", 2, {0, 1}))\n')
+            f.write('               + NewOperator("CF", NFermions, IndexUp_3d, IndexDn_3d, IndexUp_L1, IndexDn_L1, PotentialExpandedOnClm("Oh", 2, {0, 1}))\n')
+            f.write('\n')
+            f.write(f'    tenDq_L1_i = {self.params["tenDq_L1_i"]} \n')
+            f.write(f'    Veg_3d_L1_i = {self.params["Veg_L1_i"]} \n')
+            f.write(f'    Vt2g_3d_L1_i = {self.params["Vt2g_L1_i"]} \n')
+            f.write('\n')
+            f.write(f'    tenDq_L1_f = {self.params["tenDq_L1_f"]} \n')
+            f.write(f'    Veg_3d_L1_f = {self.params["Veg_L1_f"]} \n')
+            f.write(f'    Vt2g_3d_L1_f ={self.params["Vt2g_L1_f"]} \n')
+            f.write('\n')
+            f.write('    H_i = H_i + Chop(\n')
+            f.write('          tenDq_L1_i * tenDq_L1\n')
+            f.write('        + Veg_3d_L1_i * Veg_3d_L1\n')
+            f.write('        + Vt2g_3d_L1_i * Vt2g_3d_L1)\n')
+            f.write('\n')
+            f.write('    H_f = H_f + Chop(\n')
+            f.write('          tenDq_L1_f * tenDq_L1\n')
+            f.write('        + Veg_3d_L1_f * Veg_3d_L1\n')
+            f.write('        + Vt2g_3d_L1_f * Vt2g_3d_L1)')
+
+    def define_Oh_crystal_field_mlct(self, conf, conf_xas):
+        """
+        Ligand field for Oh symmetry
+        Delta_3d_L2
+        U_3d_3d
+        E_L2
+        tenDq_L2
+        Veg_3d_L2
+        Vt2g_3d_L2
+        """
+        terms = ['Delta_L2',  'tenDq_L2', 'Veg_L2', 'Vt2g_L2']
+
+        for it in terms:
+            dummy_i = self.params.get(it+'_i')
+            dummy_f = self.params.get(it+'_f')
+            
+            if dummy_i is None or dummy_f is None:
+                dummy = self.params.get(it)
+                if dummy is None:
+                    self.params.update({it:'0'})
+                else:
+                    self.params.update({it+'_i':dummy})
+                    self.params.update({it+'_f':dummy})
+
+
+        with open(self.filename, 'a') as f:
+            f.write('    N_L2 = NewOperator("Number", NFermions, IndexUp_L2, IndexUp_L2, {1, 1, 1, 1, 1})\n')
+            f.write('         + NewOperator("Number", NFermions, IndexDn_L2, IndexDn_L2, {1, 1, 1, 1, 1})\n')
+            f.write('\n')
+            f.write(f'    Delta_3d_L2_i = {self.params["Delta_L2_i"]}\n')
+            f.write('    E_3d_i = U_3d_3d_i * (-NElectrons_3d + 1) / 2\n')
+            f.write('    E_L2_i = Delta_3d_L2_i + U_3d_3d_i * NElectrons_3d / 2 - U_3d_3d_i / 2 \n')
+            f.write('\n')
+            f.write(f'    Delta_3d_L2_f = {self.params["Delta_L2_f"]} \n')
+            f.write('    E_3d_f = -(U_3d_3d_f * NElectrons_3d^2 + 11 * U_3d_3d_f * NElectrons_3d + 60 * U_2p_3d_f) / (2 * NElectrons_3d + 12) \n')
+            f.write('    E_2p_f = NElectrons_3d * (U_3d_3d_f * NElectrons_3d + U_3d_3d_f - 2 * U_2p_3d_f * NElectrons_3d - 2 * U_2p_3d_f) / (2 * (NElectrons_3d + 6)) \n')
+            f.write('    E_L2_f = (2 * Delta_3d_L2_f * NElectrons_3d + 12 * Delta_3d_L2_f + U_3d_3d_f * NElectrons_3d^2 - U_3d_3d_f * NElectrons_3d - 12 * U_3d_3d_f + 12 * U_2p_3d_f * NElectrons_3d + 12 * U_2p_3d_f) / (2 * (NElectrons_3d + 6)) \n')
+            f.write('\n')
+            f.write('    H_i = H_i + Chop(\n')
+            f.write('          E_3d_i * N_3d\n')
+            f.write('        + E_L2_i * N_L2)\n')
+            f.write('\n')
+            f.write('    H_f = H_f + Chop(\n')
+            f.write('          E_3d_f * N_3d\n')
+            f.write('        + E_2p_f * N_2p\n')
+            f.write('        + E_L2_f * N_L2)\n')
+            f.write('\n')
+            f.write('    tenDq_L2 = NewOperator("CF", NFermions, IndexUp_L2, IndexDn_L2, PotentialExpandedOnClm("Oh", 2, {0.6, -0.4}))\n')
+            f.write('\n')
+            f.write('    Veg_3d_L2 = NewOperator("CF", NFermions, IndexUp_L2, IndexDn_L2, IndexUp_3d, IndexDn_3d, PotentialExpandedOnClm("Oh", 2, {1, 0}))\n')
+            f.write('              + NewOperator("CF", NFermions, IndexUp_3d, IndexDn_3d, IndexUp_L2, IndexDn_L2, PotentialExpandedOnClm("Oh", 2, {1, 0}))\n')
+            f.write('\n')
+            f.write('    Vt2g_3d_L2 = NewOperator("CF", NFermions, IndexUp_L2, IndexDn_L2, IndexUp_3d, IndexDn_3d, PotentialExpandedOnClm("Oh", 2, {0, 1}))\n')
+            f.write('               + NewOperator("CF", NFermions, IndexUp_3d, IndexDn_3d, IndexUp_L2, IndexDn_L2, PotentialExpandedOnClm("Oh", 2, {0, 1}))\n')
+            f.write('\n')
+            f.write(f'    tenDq_L2_i = {self.params["tenDq_L2_i"]} \n')
+            f.write(f'    Veg_3d_L2_i = {self.params["Veg_L2_i"]} \n')
+            f.write(f'    Vt2g_3d_L2_i = {self.params["Vt2g_L2_i"]} \n')
+            f.write('\n')
+            f.write(f'    tenDq_L2_f = {self.params["tenDq_L2_f"]} \n')
+            f.write(f'    Veg_3d_L2_f = {self.params["Veg_L2_f"]} \n')
+            f.write(f'    Vt2g_3d_L2_f ={self.params["Vt2g_L2_f"]} \n')
+            f.write('\n')
+            f.write('    H_i = H_i + Chop(\n')
+            f.write('          tenDq_L2_i * tenDq_L2\n')
+            f.write('        + Veg_3d_L2_i * Veg_3d_L2\n')
+            f.write('        + Vt2g_3d_L2_i * Vt2g_3d_L2)\n')
+            f.write('\n')
+            f.write('    H_f = H_f + Chop(\n')
+            f.write('          tenDq_L2_f * tenDq_L2\n')
+            f.write('        + Veg_3d_L2_f * Veg_3d_L2\n')
+            f.write('        + Vt2g_3d_L2_f * Vt2g_3d_L2)')
 
     def define_D3h_crystal_field_term(self, conf, conf_xas):
         """
@@ -363,8 +541,207 @@ class XAS_Lua:
                 f.write("H_i = H_i + Chop(Dq_3d_i * Dq_3d + Ds_3d_i * Ds_3d + Dt_3d_i * Dt_3d)\n")
                 f.write("H_f = H_f + Chop(Dq_3d_f * Dq_3d + Ds_3d_f * Ds_3d + Dt_3d_f * Dt_3d)\n")
 
-        
+        if (self.params["H_3d_ligands_hybridization_lmct"]):
+            self.define_D4h_crystal_field_lmct(conf, conf_xas)
+        if (self.params["H_3d_ligands_hybridization_mlct"]):
+            self.define_D4h_crystal_field_mlct(conf, conf_xas)
 
+
+        
+    def define_D4h_crystal_field_lmct(self, conf, conf_xas):
+        """
+        Delta_L1
+        Va1g_L1
+        Vb1g_L1
+        Vb2g_L1
+        Veg_L1
+        Dq_L1
+        Ds_L1
+        Dt_L1
+        """
+        terms = ['Delta_L1','Va1g_L1','Vb1g_L1','Vb2g_L1','Veg_L1','Dq_L1','Ds_L1','Dt_L1']
+
+        for it in terms:
+            dummy_i = self.params.get(it+'_i')
+            dummy_f = self.params.get(it+'_f')
+            
+            if dummy_i is None or dummy_f is None:
+                dummy = self.params.get(it)
+                if dummy is None:
+                    self.params.update({it:'0'})
+                else:
+                    self.params.update({it+'_i':dummy})
+                    self.params.update({it+'_f':dummy})
+        with open(self.filename, 'a') as f:
+            f.write('N_L1 = NewOperator("Number", NFermions, IndexUp_L1, IndexUp_L1, {1, 1, 1, 1, 1}) \n')
+            f.write('     + NewOperator("Number", NFermions, IndexDn_L1, IndexDn_L1, {1, 1, 1, 1, 1}) \n')
+            f.write(' \n')
+            f.write(f'Delta_3d_L1_i = {self.params["Delta_L1_i"]} \n')
+            f.write('E_3d_i = (10 * Delta_3d_L1_i - NElectrons_3d * (19 + NElectrons_3d) * U_3d_3d_i / 2) / (10 + NElectrons_3d) \n')
+            f.write('E_L1_i = NElectrons_3d * ((1 + NElectrons_3d) * U_3d_3d_i / 2 - Delta_3d_L1_i) / (10 + NElectrons_3d) \n')
+            f.write(' \n')
+            f.write(f'Delta_3d_L1_f = {self.params["Delta_L1_f"]} \n')
+            f.write('E_3d_f = (10 * Delta_3d_L1_f - NElectrons_3d * (31 + NElectrons_3d) * U_3d_3d_f / 2 - 90 * U_2p_3d_f) / (16 + NElectrons_3d) \n')
+            f.write('E_2p_f = (10 * Delta_3d_L1_f + (1 + NElectrons_3d) * (NElectrons_3d * U_3d_3d_f / 2 - (10 + NElectrons_3d) * U_2p_3d_f)) / (16 + NElectrons_3d) \n')
+            f.write('E_L1_f = ((1 + NElectrons_3d) * (NElectrons_3d * U_3d_3d_f / 2 + 6 * U_2p_3d_f) - (6 + NElectrons_3d) * Delta_3d_L1_f) / (16 + NElectrons_3d) \n')
+            f.write(' \n')
+            f.write('H_i = H_i + Chop( \n')
+            f.write('      E_3d_i * N_3d \n')
+            f.write('    + E_L1_i * N_L1) \n')
+            f.write(' \n')
+            f.write('H_f = H_f + Chop( \n')
+            f.write('      E_3d_f * N_3d \n')
+            f.write('    + E_2p_f * N_2p \n')
+            f.write('    + E_L1_f * N_L1) \n')
+            f.write(' \n')
+            f.write('Dq_L1 = NewOperator("CF", NFermions, IndexUp_L1, IndexDn_L1, PotentialExpandedOnClm("D4h", 2, { 6,  6, -4, -4})) \n')
+            f.write('Ds_L1 = NewOperator("CF", NFermions, IndexUp_L1, IndexDn_L1, PotentialExpandedOnClm("D4h", 2, {-2,  2,  2, -1})) \n')
+            f.write('Dt_L1 = NewOperator("CF", NFermions, IndexUp_L1, IndexDn_L1, PotentialExpandedOnClm("D4h", 2, {-6, -1, -1,  4})) \n')
+            f.write(' \n')
+            f.write('Va1g_3d_L1 = NewOperator("CF", NFermions, IndexUp_L1, IndexDn_L1, IndexUp_3d, IndexDn_3d, PotentialExpandedOnClm("D4h", 2, {1, 0, 0, 0})) \n')
+            f.write('           + NewOperator("CF", NFermions, IndexUp_3d, IndexDn_3d, IndexUp_L1, IndexDn_L1, PotentialExpandedOnClm("D4h", 2, {1, 0, 0, 0})) \n')
+            f.write(' \n')
+            f.write('Vb1g_3d_L1 = NewOperator("CF", NFermions, IndexUp_L1, IndexDn_L1, IndexUp_3d, IndexDn_3d, PotentialExpandedOnClm("D4h", 2, {0, 1, 0, 0})) \n')
+            f.write('           + NewOperator("CF", NFermions, IndexUp_3d, IndexDn_3d, IndexUp_L1, IndexDn_L1, PotentialExpandedOnClm("D4h", 2, {0, 1, 0, 0})) \n')
+            f.write(' \n')
+            f.write('Vb2g_3d_L1 = NewOperator("CF", NFermions, IndexUp_L1, IndexDn_L1, IndexUp_3d, IndexDn_3d, PotentialExpandedOnClm("D4h", 2, {0, 0, 1, 0})) \n')
+            f.write('           + NewOperator("CF", NFermions, IndexUp_3d, IndexDn_3d, IndexUp_L1, IndexDn_L1, PotentialExpandedOnClm("D4h", 2, {0, 0, 1, 0})) \n')
+            f.write(' \n')
+            f.write('Veg_3d_L1 = NewOperator("CF", NFermions, IndexUp_L1, IndexDn_L1, IndexUp_3d, IndexDn_3d, PotentialExpandedOnClm("D4h", 2, {0, 0, 0, 1})) \n')
+            f.write('          + NewOperator("CF", NFermions, IndexUp_3d, IndexDn_3d, IndexUp_L1, IndexDn_L1, PotentialExpandedOnClm("D4h", 2, {0, 0, 0, 1})) \n')
+            f.write(' \n')
+            f.write(f'Dq_L1_i = {self.params["Dq_L1_i"]} \n')
+            f.write(f'Ds_L1_i = {self.params["Ds_L1_i"]} \n')
+            f.write(f'Dt_L1_i = {self.params["Dt_L1_i"]} \n')
+            f.write(f'Va1g_3d_L1_i = {self.params["Va1g_L1_i"]} \n')
+            f.write(f'Vb1g_3d_L1_i = {self.params["Vb1g_L1_i"]} \n')
+            f.write(f'Vb2g_3d_L1_i = {self.params["Vb2g_L1_i"]} \n')
+            f.write(f'Veg_3d_L1_i =  {self.params["Veg_L1_i"]}\n')
+            f.write(' \n')
+            f.write(f'Dq_L1_f = {self.params["Dq_L1_f"]} \n')
+            f.write(f'Ds_L1_f = {self.params["Ds_L1_f"]} \n')
+            f.write(f'Dt_L1_f = {self.params["Dt_L1_f"]} \n')
+            f.write(f'Va1g_3d_L1_f = {self.params["Va1g_L1_f"]} \n')
+            f.write(f'Vb1g_3d_L1_f = {self.params["Vb1g_L1_f"]} \n')
+            f.write(f'Vb2g_3d_L1_f = {self.params["Vb2g_L1_f"]} \n')
+            f.write(f'Veg_3d_L1_f = {self.params["Veg_L1_f"]} \n')
+            f.write(' \n')
+            f.write('H_i = H_i + Chop( \n')
+            f.write('      Dq_L1_i * Dq_L1 \n')
+            f.write('    + Ds_L1_i * Ds_L1 \n')
+            f.write('    + Dt_L1_i * Dt_L1 \n')
+            f.write('    + Va1g_3d_L1_i * Va1g_3d_L1 \n')
+            f.write('    + Vb1g_3d_L1_i * Vb1g_3d_L1 \n')
+            f.write('    + Vb2g_3d_L1_i * Vb2g_3d_L1 \n')
+            f.write('    + Veg_3d_L1_i  * Veg_3d_L1) \n')
+            f.write(' \n')
+            f.write('H_f = H_f + Chop( \n')
+            f.write('      Dq_L1_f * Dq_L1 \n')
+            f.write('    + Ds_L1_f * Ds_L1 \n')
+            f.write('    + Dt_L1_f * Dt_L1 \n')
+            f.write('    + Va1g_3d_L1_f * Va1g_3d_L1 \n')
+            f.write('    + Vb1g_3d_L1_f * Vb1g_3d_L1 \n')
+            f.write('    + Vb2g_3d_L1_f * Vb2g_3d_L1 \n')
+            f.write('    + Veg_3d_L1_f  * Veg_3d_L1) \n')
+
+    def define_D4h_crystal_field_mlct(self, conf, conf_xas):
+        """
+        Delta_L2
+        Va1g_L2
+        Vb1g_L2
+        Vb2g_L2
+        Veg_L2
+        Dq_L2
+        Ds_L2
+        Dt_L2
+        """
+        terms = ['Delta_L2','Va1g_L2','Vb1g_L2','Vb2g_L2','Veg_L2','Dq_L2','Ds_L2','Dt_L2']
+
+        for it in terms:
+            dummy_i = self.params.get(it+'_i')
+            dummy_f = self.params.get(it+'_f')
+            
+            if dummy_i is None or dummy_f is None:
+                dummy = self.params.get(it)
+                if dummy is None:
+                    self.params.update({it:'0'})
+                else:
+                    self.params.update({it+'_i':dummy})
+                    self.params.update({it+'_f':dummy})
+        with open(self.filename, 'a') as f:
+            f.write('N_L2 = NewOperator("Number", NFermions, IndexUp_L2, IndexUp_L2, {1, 1, 1, 1, 1}) \n')
+            f.write('     + NewOperator("Number", NFermions, IndexDn_L2, IndexDn_L2, {1, 1, 1, 1, 1}) \n')
+            f.write(' \n')
+            f.write(f'Delta_3d_L2_i = {self.params["Delta_L2_i"]} \n')
+            f.write(f'Delta_3d_L2_f = {self.params["Delta_L2_f"]} \n')
+            f.write('E_3d_i = U_3d_3d_i * (-NElectrons_3d + 1) / 2 \n')
+            f.write('E_L2_i = Delta_3d_L2_i + U_3d_3d_i * NElectrons_3d / 2 - U_3d_3d_i / 2 \n')
+            f.write(' \n')
+            f.write('E_3d_f = -(U_3d_3d_f * NElectrons_3d^2 + 11 * U_3d_3d_f * NElectrons_3d + 60 * U_2p_3d_f) / (2 * NElectrons_3d + 12) \n')
+            f.write('E_2p_f = NElectrons_3d * (U_3d_3d_f * NElectrons_3d + U_3d_3d_f - 2 * U_2p_3d_f * NElectrons_3d - 2 * U_2p_3d_f) / (2 * (NElectrons_3d + 6)) \n')
+            f.write('E_L2_f = (2 * Delta_3d_L2_f * NElectrons_3d + 12 * Delta_3d_L2_f + U_3d_3d_f * NElectrons_3d^2 - U_3d_3d_f * NElectrons_3d - 12 * U_3d_3d_f + 12 * U_2p_3d_f * NElectrons_3d + 12 * U_2p_3d_f) / (2 * (NElectrons_3d + 6)) \n')
+            f.write(' \n')
+
+            f.write('H_i = H_i + Chop( \n')
+            f.write('      E_3d_i * N_3d \n')
+            f.write('    + E_L2_i * N_L2) \n')
+            f.write(' \n')
+            f.write('H_f = H_f + Chop( \n')
+            f.write('      E_3d_f * N_3d \n')
+            f.write('    + E_2p_f * N_2p \n')
+            f.write('    + E_L2_f * N_L2) \n')
+            f.write(' \n')
+            f.write('Dq_L2 = NewOperator("CF", NFermions, IndexUp_L2, IndexDn_L2, PotentialExpandedOnClm("D4h", 2, { 6,  6, -4, -4})) \n')
+            f.write('Ds_L2 = NewOperator("CF", NFermions, IndexUp_L2, IndexDn_L2, PotentialExpandedOnClm("D4h", 2, {-2,  2,  2, -1})) \n')
+            f.write('Dt_L2 = NewOperator("CF", NFermions, IndexUp_L2, IndexDn_L2, PotentialExpandedOnClm("D4h", 2, {-6, -1, -1,  4})) \n')
+            f.write(' \n')
+            f.write('Va1g_3d_L2 = NewOperator("CF", NFermions, IndexUp_L2, IndexDn_L2, IndexUp_3d, IndexDn_3d, PotentialExpandedOnClm("D4h", 2, {1, 0, 0, 0})) \n')
+            f.write('           + NewOperator("CF", NFermions, IndexUp_3d, IndexDn_3d, IndexUp_L2, IndexDn_L2, PotentialExpandedOnClm("D4h", 2, {1, 0, 0, 0})) \n')
+            f.write(' \n')
+            f.write('Vb1g_3d_L2 = NewOperator("CF", NFermions, IndexUp_L2, IndexDn_L2, IndexUp_3d, IndexDn_3d, PotentialExpandedOnClm("D4h", 2, {0, 1, 0, 0})) \n')
+            f.write('           + NewOperator("CF", NFermions, IndexUp_3d, IndexDn_3d, IndexUp_L2, IndexDn_L2, PotentialExpandedOnClm("D4h", 2, {0, 1, 0, 0})) \n')
+            f.write(' \n')
+            f.write('Vb2g_3d_L2 = NewOperator("CF", NFermions, IndexUp_L2, IndexDn_L2, IndexUp_3d, IndexDn_3d, PotentialExpandedOnClm("D4h", 2, {0, 0, 1, 0})) \n')
+            f.write('           + NewOperator("CF", NFermions, IndexUp_3d, IndexDn_3d, IndexUp_L2, IndexDn_L2, PotentialExpandedOnClm("D4h", 2, {0, 0, 1, 0})) \n')
+            f.write(' \n')
+            f.write('Veg_3d_L2 = NewOperator("CF", NFermions, IndexUp_L2, IndexDn_L2, IndexUp_3d, IndexDn_3d, PotentialExpandedOnClm("D4h", 2, {0, 0, 0, 1})) \n')
+            f.write('          + NewOperator("CF", NFermions, IndexUp_3d, IndexDn_3d, IndexUp_L2, IndexDn_L2, PotentialExpandedOnClm("D4h", 2, {0, 0, 0, 1})) \n')
+            f.write(' \n')
+            f.write(f'Dq_L2_i = {self.params["Dq_L2_i"]} \n')
+            f.write(f'Ds_L2_i = {self.params["Ds_L2_i"]} \n')
+            f.write(f'Dt_L2_i = {self.params["Dt_L2_i"]} \n')
+            f.write(f'Va1g_3d_L2_i = {self.params["Va1g_L2_i"]} \n')
+            f.write(f'Vb1g_3d_L2_i = {self.params["Vb1g_L2_i"]} \n')
+            f.write(f'Vb2g_3d_L2_i = {self.params["Vb2g_L2_i"]} \n')
+            f.write(f'Veg_3d_L2_i =  {self.params["Veg_L2_i"]}\n')
+            f.write(' \n')
+            f.write(f'Dq_L2_f = {self.params["Dq_L2_f"]} \n')
+            f.write(f'Ds_L2_f = {self.params["Ds_L2_f"]} \n')
+            f.write(f'Dt_L2_f = {self.params["Dt_L2_f"]} \n')
+            f.write(f'Va1g_3d_L2_f = {self.params["Va1g_L2_f"]} \n')
+            f.write(f'Vb1g_3d_L2_f = {self.params["Vb1g_L2_f"]} \n')
+            f.write(f'Vb2g_3d_L2_f = {self.params["Vb2g_L2_f"]} \n')
+            f.write(f'Veg_3d_L2_f = {self.params["Veg_L2_f"]} \n')
+            f.write(' \n')
+            f.write('H_i = H_i + Chop( \n')
+            f.write('      Dq_L2_i * Dq_L2 \n')
+            f.write('    + Ds_L2_i * Ds_L2 \n')
+            f.write('    + Dt_L2_i * Dt_L2 \n')
+            f.write('    + Va1g_3d_L2_i * Va1g_3d_L2 \n')
+            f.write('    + Vb1g_3d_L2_i * Vb1g_3d_L2 \n')
+            f.write('    + Vb2g_3d_L2_i * Vb2g_3d_L2 \n')
+            f.write('    + Veg_3d_L2_i  * Veg_3d_L2) \n')
+            f.write(' \n')
+            f.write('H_f = H_f + Chop( \n')
+            f.write('      Dq_L2_f * Dq_L2 \n')
+            f.write('    + Ds_L2_f * Ds_L2 \n')
+            f.write('    + Dt_L2_f * Dt_L2 \n')
+            f.write('    + Va1g_3d_L2_f * Va1g_3d_L2 \n')
+            f.write('    + Vb1g_3d_L2_f * Vb1g_3d_L2 \n')
+            f.write('    + Vb2g_3d_L2_f * Vb2g_3d_L2 \n')
+            f.write('    + Veg_3d_L2_f  * Veg_3d_L2) \n')
+
+        
     def define_Td_crystal_field_term(self, conf, conf_xas):
         """
         Crystal field with Td symmetry
@@ -560,6 +937,9 @@ class XAS_Lua:
     def setRestrictions(self):
         """
         """
+        nconfs = self.params.get('NConfigurations')
+        if nconfs is None:
+            nconfs = 2
         with open(self.filename, 'a') as f:
             f.write(70 * '-' + '\n-- Define the restrictions.\n' + 70 * '-' + '\n')
             f.write("InitialRestrictions = {NFermions, NBosons, {'111111 0000000000', NElectrons_2p, NElectrons_2p},\n")
@@ -569,6 +949,8 @@ class XAS_Lua:
                 "FinalRestrictions = {NFermions, NBosons, {'111111 0000000000', NElectrons_2p - 1, NElectrons_2p - 1},\n")
             f.write("                             {'000000 1111111111', NElectrons_3d + 1, NElectrons_3d + 1}}\n\n")
             if self.params['H_3d_ligands_hybridization_lmct']:
+                
+                f.write(f"NConfigurations = {nconfs} \n")
                 f.write(
                     "    InitialRestrictions = {NFermions, NBosons, {'111111 0000000000 0000000000', NElectrons_2p, NElectrons_2p},\n")
                 f.write(
@@ -1232,4 +1614,4 @@ class XAS_Lua:
         self.calculate_and_save_spectra()
         self.run()  # run quanty!
         return self.post_proc_output_only()
-
+    
